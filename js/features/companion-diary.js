@@ -298,7 +298,7 @@
                         : '<span class="cd-note-empty">点击此处添加备注…</span>';
 
                     const missedTagHtml = isMissed
-                        ? '<span class="cd-missed-tag"><i class="fas fa-heart-crack"></i>错过了</span>'
+                        ? '<span class="cd-missed-tag">' + escapeHtml(userName) + '错过了</span>'
                         : '';
                     const missedClass = isMissed ? ' cd-entry-missed' : '';
 
@@ -471,7 +471,7 @@
             sleep:    '睡觉',
             partner:  getPartnerName() + '邀请',
             user:     getUserName() + '邀请',
-            missed:   '错过了'
+            missed:   getUserName() + '错过了'
         };
         if (type === 'mode') {
             const label = document.getElementById('cd-chip-mode-label');
@@ -581,7 +581,7 @@
         const initData = [
             { label: getPartnerName() + '邀请', value: partnerCnt, color: initColors[0] },
             { label: getUserName() + '邀请',    value: userCnt,    color: initColors[1] },
-            { label: '错过了',                  value: missedCnt,  color: initColors[2] }
+            { label: getUserName() + '错过了',  value: missedCnt,  color: initColors[2] }
         ];
         drawPie('cd-pie-init', initData, initTotal);
         renderLegend('cd-legend-init', initData, initTotal);
