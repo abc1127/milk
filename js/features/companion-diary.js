@@ -298,7 +298,7 @@
                         : '<span class="cd-note-empty">点击此处添加备注…</span>';
 
                     const missedTagHtml = isMissed
-                        ? '<span class="cd-missed-tag">错过了</span>'
+                        ? '<span class="cd-missed-tag" style="margin-left:auto;">错过了</span>'
                         : '';
                     const missedClass = isMissed ? ' cd-entry-missed' : '';
 
@@ -312,7 +312,7 @@
                             '<span class="cd-initiator ' + initiatorClass + '">' + escapeHtml(initiatorLabel) + '</span>' +
                             missedTagHtml +
                             (isMissed
-                              ? '<span style="margin-left:auto;display:flex;align-items:center;gap:5px;flex-shrink:0;">' +
+                              ? '<span style="display:flex;align-items:center;gap:5px;flex-shrink:0;">' +
                                   '<span class="cd-mode-tag"><i class="fas ' + cfg.icon + '"></i>' + cfg.shortName + '</span>' +
                                   '<span class="cd-time-dur" style="margin-left:0;">' + time + '</span>' +
                                 '</span>'
