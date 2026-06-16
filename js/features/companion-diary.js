@@ -298,7 +298,7 @@
                         : '<span class="cd-note-empty">点击此处添加备注…</span>';
 
                     const missedTagHtml = isMissed
-                        ? '<span class="cd-missed-tag">' + escapeHtml(userName) + '错过了</span>'
+                        ? '<span class="cd-missed-tag">错过了</span>'
                         : '';
                     const missedClass = isMissed ? ' cd-entry-missed' : '';
 
@@ -311,9 +311,14 @@
                           '<div class="cd-top-row">' +
                             '<span class="cd-initiator ' + initiatorClass + '">' + escapeHtml(initiatorLabel) + '</span>' +
                             missedTagHtml +
-                            '<span class="cd-mode-tag"><i class="fas ' + cfg.icon + '"></i>' + cfg.shortName + '</span>' +
-                            (isMissed ? '' : '<span class="cd-time-dur">' + time + ' · ' + dur + '</span>') +
-                            (isMissed ? '<span class="cd-time-dur">' + time + '</span>' : '') +
+                            (isMissed
+                              ? '<span style="margin-left:auto;display:flex;align-items:center;gap:5px;flex-shrink:0;">' +
+                                  '<span class="cd-mode-tag"><i class="fas ' + cfg.icon + '"></i>' + cfg.shortName + '</span>' +
+                                  '<span class="cd-time-dur" style="margin-left:0;">' + time + '</span>' +
+                                '</span>'
+                              : '<span class="cd-mode-tag"><i class="fas ' + cfg.icon + '"></i>' + cfg.shortName + '</span>' +
+                                '<span class="cd-time-dur">' + time + ' · ' + dur + '</span>'
+                            ) +
                           '</div>' +
                           '<div class="cd-notes">' +
                             partnerRowHtml +
@@ -671,8 +676,10 @@
         const userName = getUserName();
         const partnerItem = document.querySelector('.cd-dropdown-item[data-name-partner]');
         const userItem = document.querySelector('.cd-dropdown-item[data-name-me]');
+        const missedItem = document.querySelector('.cd-dropdown-item[data-name-missed]');
         if (partnerItem) partnerItem.textContent = partnerName + '邀请';
         if (userItem) userItem.textContent = userName + '邀请';
+        if (missedItem) missedItem.textContent = userName + '错过了';
     }
 
     // ─── 主入口：打开日记 modal ──────────────────────
