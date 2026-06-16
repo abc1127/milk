@@ -7,6 +7,7 @@
  *   mode: 'study' | 'work' | 'exercise' | 'sleep',
  *   duration: 秒数,
  *   initiator: 'partner' | 'user',
+ *   missed: true | undefined,   // 错过的邀请记录（超时未接）
  *   partnerNote: 字卡内容（梦角自动生成）,
  *   userNote: 用户手动写的备注
  * }
@@ -65,6 +66,7 @@
             mode: entry.mode,
             duration: entry.duration || 0,
             initiator: entry.initiator || 'user',
+            missed: entry.missed || false,
             partnerNote: entry.partnerNote || '',
             userNote: entry.userNote || ''
         };
@@ -243,7 +245,9 @@
         // 应用筛选后的所有条目
         const filteredEntries = _diaryEntries.filter(e => {
             if (_filterMode !== 'all' && e.mode !== _filterMode) return false;
-            if (_filterInit !== 'all' && e.initiator !== _filterInit) return false;
+            if (_filterInit === 'missed') return !!e.missed;
+            if (_filterInit === 'partner' && (e.initiator !== 'partner' || !!e.missed)) return false;
+            if (_filterInit === 'user' && e.initiator !== 'user') return false;
             return true;
         });
 
@@ -274,8 +278,11 @@
                     const time = formatTime(e.ts);
                     const dur = formatDuration(e.duration);
 
-                    const initiatorLabel = e.initiator === 'partner' ? (partnerName + '邀请') : (userName + '邀请');
-                    const initiatorClass = e.initiator === 'partner' ? '' : 'cd-init-user';
+                    const isMissed = !!e.missed;
+                    const initiatorLabel = isMissed
+                        ? (partnerName + '邀请')
+                        : (e.initiator === 'partner' ? (partnerName + '邀请') : (userName + '邀请'));
+                    const initiatorClass = (e.initiator === 'partner' || isMissed) ? '' : 'cd-init-user';
 
                     const hasPartnerNote = !!e.partnerNote;
                     const partnerRowHtml = hasPartnerNote
@@ -290,7 +297,12 @@
                         ? '<span class="cd-note-text">' + escapeHtml(e.userNote) + '</span>'
                         : '<span class="cd-note-empty">点击此处添加备注…</span>';
 
-                    html += '<div class="cd-entry" data-id="' + e.id + '">' +
+                    const missedTagHtml = isMissed
+                        ? '<span class="cd-missed-tag"><i class="fas fa-heart-crack"></i>错过了</span>'
+                        : '';
+                    const missedClass = isMissed ? ' cd-entry-missed' : '';
+
+                    html += '<div class="cd-entry' + missedClass + '" data-id="' + e.id + '">' +
                         '<div class="cd-date-col">' +
                           '<div class="cd-day">' + day + '</div>' +
                           '<div class="cd-weekday">' + weekday + '</div>' +
@@ -298,8 +310,10 @@
                         '<div class="cd-entry-content">' +
                           '<div class="cd-top-row">' +
                             '<span class="cd-initiator ' + initiatorClass + '">' + escapeHtml(initiatorLabel) + '</span>' +
+                            missedTagHtml +
                             '<span class="cd-mode-tag"><i class="fas ' + cfg.icon + '"></i>' + cfg.shortName + '</span>' +
-                            '<span class="cd-time-dur">' + time + ' · ' + dur + '</span>' +
+                            (isMissed ? '' : '<span class="cd-time-dur">' + time + ' · ' + dur + '</span>') +
+                            (isMissed ? '<span class="cd-time-dur">' + time + '</span>' : '') +
                           '</div>' +
                           '<div class="cd-notes">' +
                             partnerRowHtml +
@@ -456,7 +470,8 @@
             exercise: '运动',
             sleep:    '睡觉',
             partner:  getPartnerName() + '邀请',
-            user:     getUserName() + '邀请'
+            user:     getUserName() + '邀请',
+            missed:   '错过了'
         };
         if (type === 'mode') {
             const label = document.getElementById('cd-chip-mode-label');
@@ -490,7 +505,10 @@
 
         const cfg = MODE_CONFIG[entry.mode] || MODE_CONFIG.study;
         const d = new Date(entry.ts);
-        const info = (d.getMonth() + 1) + '月' + d.getDate() + '日 · ' + cfg.shortName + ' · ' + formatDuration(entry.duration);
+        const dateStr = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+        const info = entry.missed
+            ? dateStr + ' · 错过了 ' + cfg.shortName + ' 邀请'
+            : dateStr + ' · ' + cfg.shortName + ' · ' + formatDuration(entry.duration);
         document.getElementById('cd-note-edit-info').textContent = info;
         document.getElementById('cd-note-edit-textarea').value = entry.userNote || '';
 
@@ -522,21 +540,24 @@
         if (view) view.classList.remove('open');
     }
     function renderStats() {
-        const totalCount = _diaryEntries.length;
-        const totalDur = _diaryEntries.reduce((s, e) => s + (e.duration || 0), 0);
+        // 仅统计正常陪伴记录（非错过）
+        const normalEntries = _diaryEntries.filter(e => !e.missed);
+        const totalCount = normalEntries.length;
+        const totalDur = normalEntries.reduce((s, e) => s + (e.duration || 0), 0);
         document.getElementById('cd-total-count').textContent = totalCount;
         document.getElementById('cd-total-duration').textContent = totalDur > 0 ? formatDurationTotal(totalDur) : '0min';
 
-        // 邀请来源
-        let partnerCnt = 0, userCnt = 0;
+        // 邀请来源（含错过）
+        let partnerCnt = 0, userCnt = 0, missedCnt = 0;
         _diaryEntries.forEach(e => {
-            if (e.initiator === 'partner') partnerCnt++;
+            if (e.missed) missedCnt++;
+            else if (e.initiator === 'partner') partnerCnt++;
             else userCnt++;
         });
 
-        // 种类
+        // 种类（仅正常记录）
         const modeCnt = { study: 0, work: 0, exercise: 0, sleep: 0 };
-        _diaryEntries.forEach(e => {
+        normalEntries.forEach(e => {
             if (modeCnt.hasOwnProperty(e.mode)) modeCnt[e.mode]++;
         });
 
@@ -544,7 +565,8 @@
         const accentRgb = getAccentRgb();
         const initColors = [
             'rgb(' + accentRgb + ')',                       // 梦角邀请 = 主题色
-            'rgba(' + accentRgb + ', 0.45)'                 // 用户邀请 = 主题色浅一些
+            'rgba(' + accentRgb + ', 0.45)',                // 用户邀请 = 主题色浅一些
+            'rgba(180,180,180,0.6)'                         // 错过了 = 灰色
         ];
         // 种类用固定的柔和马卡龙色
         const modeColors = {
@@ -554,13 +576,15 @@
             sleep:    '#A4D6FF'    // 睡觉 - 浅蓝
         };
 
-        // 邀请来源图
+        // 邀请来源图（含错过）
+        const initTotal = partnerCnt + userCnt + missedCnt;
         const initData = [
             { label: getPartnerName() + '邀请', value: partnerCnt, color: initColors[0] },
-            { label: getUserName() + '邀请',    value: userCnt,    color: initColors[1] }
+            { label: getUserName() + '邀请',    value: userCnt,    color: initColors[1] },
+            { label: '错过了',                  value: missedCnt,  color: initColors[2] }
         ];
-        drawPie('cd-pie-init', initData, totalCount);
-        renderLegend('cd-legend-init', initData, totalCount);
+        drawPie('cd-pie-init', initData, initTotal);
+        renderLegend('cd-legend-init', initData, initTotal);
 
         // 种类分布图
         const modeData = [
