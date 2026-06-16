@@ -772,6 +772,25 @@
             overlay.remove();
             const sceneName = MODES[mode]?.label?.replace(/^一起/, '') || '';
             sendChatEvent('fa-heart-crack', `错过了${partnerName}的${sceneName}邀请`, null);
+            // 写入陪伴日记（错过记录）
+            try {
+                if (typeof window.addCompanionDiaryEntry === 'function') {
+                    // 90% 概率有梦角备注
+                    const partnerNote = Math.random() < 0.9
+                        ? (typeof window.pickCompanionDiaryCards === 'function' ? window.pickCompanionDiaryCards() : '')
+                        : '';
+                    window.addCompanionDiaryEntry({
+                        id: Date.now(),
+                        ts: Date.now(),
+                        mode: mode,
+                        duration: 0,
+                        initiator: 'partner',
+                        missed: true,
+                        partnerNote: partnerNote,
+                        userNote: ''
+                    });
+                }
+            } catch(e) { console.warn('[companion] missed diary entry error:', e); }
         }, 22000);
 
         // 拒绝
