@@ -11445,6 +11445,25 @@ body #user-sticker-picker .empty-sticker-tip {
     background: rgba(var(--accent-color-rgb), 0.18);
     color: var(--accent-color);
 }
+.cd-missed-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: var(--radius-xs);
+    border: 1px solid rgba(var(--accent-color-rgb), 0.3);
+    color: var(--accent-color);
+    background: rgba(var(--accent-color-rgb), 0.06);
+}
+.cd-entry-missed {
+    opacity: 0.72;
+}
+.cd-entry-missed .cd-day,
+.cd-entry-missed .cd-mode-tag {
+    color: var(--text-secondary);
+}
+.cd-entry-missed .cd-mode-tag {
+    background: rgba(150,150,150,0.1);
+    color: var(--text-secondary);
+}
 .cd-time-dur {
     font-size: 11px;
     color: var(--text-secondary);
