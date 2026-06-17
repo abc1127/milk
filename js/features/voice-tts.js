@@ -2,8 +2,7 @@
  * voice-tts.js · 真实语音模块
  *   - MyMemory 翻译中文 → 日语（免费，无需注册）
  *   - 语气后处理：去敬语，调整为冷漠/嘴硬/命令式混合风格
- *   - ElevenLabs TTS 生成日语语音
- *   - ElevenLabs 声音克隆（上传音频 → 生成 Voice ID）
+ *   - MiniMax TTS 生成日语语音 + 声音克隆
  *   - 生成的音频 blob 缓存在内存，同一条消息不重复请求
  * ──────────────────────────────────────────────────────────────── */
 (function () {
@@ -29,17 +28,16 @@
 
     function getTtsConfig() { return _getConfig(); }
 
-    function saveTtsConfig(elevenKey, voiceId) {
-        _saveConfig({ elevenKey, voiceId });
+    function saveTtsConfig(minimaxKey, groupId, voiceId, model) {
+        _saveConfig({ minimaxKey, groupId, voiceId, model: model || 'speech-02-turbo' });
     }
 
     function isTtsReady() {
         const c = _getConfig();
-        return !!(c.elevenKey && c.voiceId);
+        return !!(c.minimaxKey && c.groupId && c.voiceId);
     }
 
     // ─────────── 语气后处理：去敬语 + 傲娇/冷漠/命令式 ───────────
-    // 想调整语气风格，修改这里的替换规则就好
     function _adjustTone(text) {
         const rules = [
             // ── 去除敬语词尾 ──
@@ -72,11 +70,9 @@
             [/ごめん/g,          '悪い'],
 
             // ── 温柔表达 → 冷漠版 ──
-            [/〜ていただけますか/g, 'か'],
             [/いただけます/g,    'くれ'],
             [/よろしいでしょうか/g, 'いいか'],
             [/よろしくお願いします/g, 'よろしく'],
-            [/〜かもしれません/g, 'かもな'],
             [/かもしれません/g,  'かもな'],
             [/かもしれない/g,    'かもな'],
 
@@ -88,10 +84,6 @@
             [/本当ですか/g,      '本当か'],
             [/大丈夫ですか/g,    '大丈夫か'],
             [/大丈夫です/g,      '大丈夫だ'],
-
-            // ── 冷漠短句收尾 ──
-            [/〜ですが/g,        'だが'],
-            [/〜ますが/g,        'るが'],
         ];
 
         let result = text;
@@ -107,48 +99,61 @@
         const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=zh|ja`;
 
         const res = await fetch(url);
-        if (!res.ok) {
-            throw new Error(`MyMemory 翻译请求失败 (${res.status})`);
-        }
+        if (!res.ok) throw new Error(`MyMemory 翻译请求失败 (${res.status})`);
 
         const data = await res.json();
         if (data.responseStatus !== 200) {
             throw new Error(`MyMemory 翻译失败: ${data.responseDetails || '未知错误'}`);
         }
 
-        const translated = data.responseData.translatedText;
-        // 翻译后进行语气后处理
-        return _adjustTone(translated);
+        return _adjustTone(data.responseData.translatedText);
     }
 
-    // ─────────── ElevenLabs TTS ───────────
+    // ─────────── MiniMax TTS ───────────
     async function generateSpeech(japaneseText) {
-        const { elevenKey, voiceId } = _getConfig();
-        if (!elevenKey || !voiceId) throw new Error('未配置 ElevenLabs Key 或 Voice ID');
+        const { minimaxKey, groupId, voiceId, model } = _getConfig();
+        if (!minimaxKey || !groupId || !voiceId) throw new Error('未配置 MiniMax Key、Group ID 或 Voice ID');
+        const modelName = model || 'speech-02-turbo';
 
-        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${groupId}`, {
             method: 'POST',
             headers: {
-                'xi-api-key': elevenKey,
+                'Authorization': `Bearer ${minimaxKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                model: modelName,
                 text: japaneseText,
-                model_id: 'eleven_turbo_v2_5',
-                voice_settings: {
-                    stability: 0.5,
-                    similarity_boost: 0.75
+                stream: false,
+                voice_setting: {
+                    voice_id: voiceId,
+                    speed: 1.0,
+                    vol: 1.0,
+                    pitch: 0
+                },
+                audio_setting: {
+                    audio_sample_rate: 32000,
+                    bitrate: 128000,
+                    format: 'mp3'
                 }
             })
         });
 
         if (!res.ok) {
             const err = await res.text();
-            throw new Error(`ElevenLabs TTS 失败 (${res.status}): ${err}`);
+            throw new Error(`MiniMax TTS 失败 (${res.status}): ${err}`);
         }
 
-        const audioBlob = await res.blob();
-        return URL.createObjectURL(audioBlob);
+        const data = await res.json();
+        if (!data.data || !data.data.audio) {
+            throw new Error('MiniMax TTS 返回数据异常');
+        }
+
+        // MiniMax 返回 hex 编码的音频，需要转成 blob
+        const hex = data.data.audio;
+        const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        const blob = new Blob([bytes], { type: 'audio/mp3' });
+        return URL.createObjectURL(blob);
     }
 
     // ─────────── 主入口：翻译 + TTS（带缓存）───────────
@@ -163,47 +168,81 @@
 
     // ─────────── 声音克隆：上传音频 → 返回 Voice ID ───────────
     async function cloneVoice(audioFile, voiceName) {
-        const { elevenKey } = _getConfig();
-        if (!elevenKey) throw new Error('请先填写 ElevenLabs API Key');
+        const { minimaxKey, groupId } = _getConfig();
+        if (!minimaxKey || !groupId) throw new Error('请先填写 MiniMax API Key 和 Group ID');
 
+        // 第一步：上传音频文件
         const formData = new FormData();
-        formData.append('name', voiceName || '梦角');
-        formData.append('files', audioFile);
-        formData.append('description', 'Cloned voice for companion app');
+        formData.append('file', audioFile);
+        formData.append('purpose', 'voice_clone');
 
-        const res = await fetch('https://api.elevenlabs.io/v1/voices/add', {
+        const uploadRes = await fetch(`https://api.minimax.chat/v1/files/upload?GroupId=${groupId}`, {
             method: 'POST',
-            headers: { 'xi-api-key': elevenKey },
+            headers: { 'Authorization': `Bearer ${minimaxKey}` },
             body: formData
         });
 
-        if (!res.ok) {
-            const err = await res.text();
-            throw new Error(`声音克隆失败 (${res.status}): ${err}`);
+        if (!uploadRes.ok) {
+            const err = await uploadRes.text();
+            throw new Error(`音频上传失败 (${uploadRes.status}): ${err}`);
         }
 
-        const data = await res.json();
-        return data.voice_id;
-    }
+        const uploadData = await uploadRes.json();
+        const fileId = uploadData.file?.file_id;
+        if (!fileId) throw new Error('音频上传失败：未获取到 file_id');
 
-    // ─────────── 试听：用一句符合梦角风格的日语测试 ───────────
-    async function previewClonedVoice(voiceId) {
-        const { elevenKey } = _getConfig();
-        if (!elevenKey) throw new Error('未配置 ElevenLabs API Key');
-
-        // 傲娇风格试听句
-        const previewText = 'おい、ちゃんと聞いてるか。…まあ、会えてよかったけどな。';
-
-        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        // 第二步：创建声音克隆
+        const cloneRes = await fetch(`https://api.minimax.chat/v1/voice_clone?GroupId=${groupId}`, {
             method: 'POST',
             headers: {
-                'xi-api-key': elevenKey,
+                'Authorization': `Bearer ${minimaxKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                file_id: fileId,
+                voice_name: voiceName || '梦角'
+            })
+        });
+
+        if (!cloneRes.ok) {
+            const err = await cloneRes.text();
+            throw new Error(`声音克隆失败 (${cloneRes.status}): ${err}`);
+        }
+
+        const cloneData = await cloneRes.json();
+        const newVoiceId = cloneData.voice_id || cloneData.input_sensitive_type;
+        if (!newVoiceId) throw new Error('克隆失败：未获取到 voice_id');
+        return newVoiceId;
+    }
+
+    // ─────────── 试听：用一句傲娇风格的日语测试 ───────────
+    async function previewClonedVoice(voiceId) {
+        const { minimaxKey, groupId, model } = _getConfig();
+        if (!minimaxKey || !groupId) throw new Error('未配置 MiniMax Key 或 Group ID');
+        const modelName = model || 'speech-02-turbo';
+        const previewText = 'おい、ちゃんと聞いてるか。…まあ、会えてよかったけどな。';
+
+        const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${groupId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${minimaxKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: modelName,
                 text: previewText,
-                model_id: 'eleven_turbo_v2_5',
-                voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+                stream: false,
+                voice_setting: {
+                    voice_id: voiceId,
+                    speed: 1.0,
+                    vol: 1.0,
+                    pitch: 0
+                },
+                audio_setting: {
+                    audio_sample_rate: 32000,
+                    bitrate: 128000,
+                    format: 'mp3'
+                }
             })
         });
 
@@ -212,7 +251,12 @@
             throw new Error(`试听失败 (${res.status}): ${err}`);
         }
 
-        const blob = await res.blob();
+        const data = await res.json();
+        if (!data.data || !data.data.audio) throw new Error('试听返回数据异常');
+
+        const hex = data.data.audio;
+        const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        const blob = new Blob([bytes], { type: 'audio/mp3' });
         return URL.createObjectURL(blob);
     }
 
