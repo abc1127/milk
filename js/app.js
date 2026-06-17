@@ -729,6 +729,10 @@ function selectCompanionMode(mode) {
         observer.observe(chatModal, { attributes: true, attributeFilter: ['class'] });
     }
 
+    // ─── 页面加载时也回填一次（防止刷新后显示空白）───
+    document.addEventListener('DOMContentLoaded', () => setTimeout(_initTtsFields, 300));
+    setTimeout(_initTtsFields, 500);
+
     // ============================================
     // 声音克隆 Modal 控制
     // ============================================
