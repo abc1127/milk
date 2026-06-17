@@ -669,3 +669,210 @@ function selectCompanionMode(mode) {
         }
     }, 300);
 }
+
+
+// ============================================
+// TTS 真实语音 · 设置页逻辑
+// ============================================
+(function () {
+    'use strict';
+
+    // ─── 初始化：打开聊天设置时填入已保存的值 ───
+    function _initTtsFields() {
+        if (!window.voiceTTS) return;
+        const cfg = window.voiceTTS.getTtsConfig();
+        const elKey = document.getElementById('tts-eleven-key');
+        const vId   = document.getElementById('tts-voice-id');
+        const dKey  = document.getElementById('tts-deepl-key');
+        if (elKey) elKey.value = cfg.elevenKey || '';
+        if (vId)   vId.value   = cfg.voiceId   || '';
+        if (dKey)  dKey.value  = cfg.deeplKey  || '';
+        _updateTtsStatus();
+    }
+
+    function _updateTtsStatus() {
+        const el = document.getElementById('tts-status');
+        if (!el || !window.voiceTTS) return;
+        if (window.voiceTTS.isTtsReady()) {
+            el.style.color = '#4CAF50';
+            el.textContent = '✓ 配置完整，真实语音已启用';
+        } else {
+            el.style.color = 'var(--text-secondary)';
+            el.textContent = '填写三项配置后保存即可启用';
+        }
+    }
+
+    // ─── 保存配置 ───
+    window._saveTtsConfig = function () {
+        if (!window.voiceTTS) return;
+        const elevenKey = (document.getElementById('tts-eleven-key')?.value || '').trim();
+        const voiceId   = (document.getElementById('tts-voice-id')?.value   || '').trim();
+        const deeplKey  = (document.getElementById('tts-deepl-key')?.value  || '').trim();
+        window.voiceTTS.saveTtsConfig(elevenKey, voiceId, deeplKey);
+        _updateTtsStatus();
+        if (typeof showNotification === 'function') {
+            showNotification('配置已保存', 'success');
+        }
+    };
+
+    // ─── 聊天设置打开时初始化 ───
+    const chatModal = document.getElementById('chat-modal');
+    if (chatModal) {
+        const observer = new MutationObserver(() => {
+            if (chatModal.classList.contains('active')) {
+                setTimeout(_initTtsFields, 50);
+            }
+        });
+        observer.observe(chatModal, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    // ============================================
+    // 声音克隆 Modal 控制
+    // ============================================
+    let _clonedVoiceId = null;
+    let _previewAudio  = null;
+
+    window._openVoiceCloneModal = function () {
+        const modal = document.getElementById('voice-clone-modal');
+        if (!modal) return;
+        _resetCloneModal();
+        // 兼容不同时机：优先用全局showModal，否则直接操作class
+        if (typeof showModal === 'function') {
+            showModal(modal);
+        } else {
+            modal.classList.add('active');
+            document.body.classList.add('modal-open');
+        }
+    };
+
+    window._closeVoiceCloneModal = function () {
+        const modal = document.getElementById('voice-clone-modal');
+        if (!modal) return;
+        if (typeof hideModal === 'function') {
+            hideModal(modal);
+        } else {
+            modal.classList.remove('active');
+            document.body.classList.remove('modal-open');
+        }
+        if (_previewAudio) { _previewAudio.pause(); _previewAudio = null; }
+    };
+
+    function _resetCloneModal() {
+        _clonedVoiceId = null;
+        if (_previewAudio) { _previewAudio.pause(); _previewAudio = null; }
+        const s1 = document.getElementById('voice-clone-step1');
+        const s2 = document.getElementById('voice-clone-step2');
+        const loading = document.getElementById('voice-clone-loading');
+        const preview = document.getElementById('voice-clone-preview');
+        const status  = document.getElementById('voice-clone-step1-status');
+        const label   = document.getElementById('voice-clone-upload-label');
+        const fileInput = document.getElementById('voice-clone-file-input');
+        if (s1) s1.style.display = '';
+        if (s2) s2.style.display = 'none';
+        if (loading) loading.style.display = '';
+        if (preview) preview.style.display = 'none';
+        if (status)  status.textContent = '';
+        if (label)   label.textContent  = '点击选择音频文件';
+        if (fileInput) fileInput.value  = '';
+    }
+
+    window._retryVoiceClone = _resetCloneModal;
+
+    // 文件选择后更新标签
+    document.addEventListener('DOMContentLoaded', function () {
+        const fileInput = document.getElementById('voice-clone-file-input');
+        if (fileInput) {
+            fileInput.addEventListener('change', function () {
+                const label = document.getElementById('voice-clone-upload-label');
+                if (label && fileInput.files[0]) {
+                    label.textContent = '已选择：' + fileInput.files[0].name;
+                }
+            });
+        }
+    });
+
+    // ─── 开始克隆 ───
+    window._startVoiceClone = async function () {
+        if (!window.voiceTTS) return;
+        const fileInput = document.getElementById('voice-clone-file-input');
+        const file = fileInput && fileInput.files[0];
+        if (!file) {
+            const status = document.getElementById('voice-clone-step1-status');
+            if (status) { status.style.color = '#e57373'; status.textContent = '请先选择音频文件'; }
+            return;
+        }
+        const name = (document.getElementById('voice-clone-name')?.value || '').trim() || '梦角';
+
+        // 切到 step2 · loading
+        const s1 = document.getElementById('voice-clone-step1');
+        const s2 = document.getElementById('voice-clone-step2');
+        if (s1) s1.style.display = 'none';
+        if (s2) s2.style.display = '';
+
+        try {
+            _clonedVoiceId = await window.voiceTTS.cloneVoice(file, name);
+            // 显示预览区
+            const loading = document.getElementById('voice-clone-loading');
+            const preview = document.getElementById('voice-clone-preview');
+            if (loading) loading.style.display = 'none';
+            if (preview) preview.style.display = '';
+        } catch (err) {
+            console.error('[voice-clone]', err);
+            // 回到 step1 并显示错误
+            if (s1) s1.style.display = '';
+            if (s2) s2.style.display = 'none';
+            const status = document.getElementById('voice-clone-step1-status');
+            if (status) {
+                status.style.color = '#e57373';
+                status.textContent = '克隆失败：' + (err.message || '请检查 API Key 和网络');
+            }
+        }
+    };
+
+    // ─── 试听 ───
+    window._playVoicePreview = async function () {
+        if (!_clonedVoiceId || !window.voiceTTS) return;
+        const btn = document.getElementById('voice-clone-play-preview');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 生成中…'; }
+        try {
+            // 先把临时 voiceId 存进配置用于试听（不影响真正保存）
+            const cfg = window.voiceTTS.getTtsConfig();
+            const origId = cfg.voiceId;
+            window.voiceTTS.saveTtsConfig(cfg.elevenKey, _clonedVoiceId, cfg.deeplKey);
+
+            const audioUrl = await window.voiceTTS.previewClonedVoice(_clonedVoiceId);
+            if (_previewAudio) _previewAudio.pause();
+            _previewAudio = new Audio(audioUrl);
+            _previewAudio.play();
+            _previewAudio.onended = () => {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 再听一次'; }
+            };
+
+            // 恢复原 voiceId（等确认后才真正写入）
+            window.voiceTTS.saveTtsConfig(cfg.elevenKey, origId, cfg.deeplKey);
+        } catch (err) {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 试听效果'; }
+            if (typeof showNotification === 'function') {
+                showNotification('试听失败：' + (err.message || ''), 'error');
+            }
+        }
+    };
+
+    // ─── 确认使用克隆的声音 ───
+    window._confirmVoiceClone = function () {
+        if (!_clonedVoiceId || !window.voiceTTS) return;
+        const cfg = window.voiceTTS.getTtsConfig();
+        window.voiceTTS.saveTtsConfig(cfg.elevenKey, _clonedVoiceId, cfg.deeplKey);
+
+        // 同步回设置页输入框
+        const vIdInput = document.getElementById('tts-voice-id');
+        if (vIdInput) vIdInput.value = _clonedVoiceId;
+        _updateTtsStatus();
+
+        window._closeVoiceCloneModal();
+        if (typeof showNotification === 'function') {
+            showNotification('声音已保存，开始聊天试试吧！', 'success');
+        }
+    };
+
+})();
