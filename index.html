@@ -1316,6 +1316,43 @@
                         </div>
                     </div>
 
+                    <!-- ── TTS 真实语音配置（自用功能） ── -->
+                    <p class="cs-group-label" style="margin-top:4px;">真实语音</p>
+                    <div class="cs-card">
+                        <div style="padding:12px 14px;">
+                            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">
+                                配置后，点击语音条将生成真实日语语音播放。<br>
+                                中文字幕不变，声音为日语。
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">ElevenLabs API Key</div>
+                                <input type="password" id="tts-eleven-key" placeholder="sk_xxxxxxxxxxxxxxxx"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);box-sizing:border-box;">
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Voice ID</div>
+                                <div style="display:flex;gap:6px;align-items:center;">
+                                    <input type="text" id="tts-voice-id" placeholder="克隆后自动填入，或手动粘贴"
+                                        style="flex:1;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);">
+                                    <button onclick="window._openVoiceCloneModal && window._openVoiceCloneModal()"
+                                        style="padding:8px 10px;border:1px solid var(--accent-color);border-radius:8px;background:rgba(var(--accent-color-rgb),0.08);color:var(--accent-color);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:var(--font-family);">
+                                        <i class="fas fa-magic"></i> 克隆声音
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">DeepL API Key（免费版）</div>
+                                <input type="password" id="tts-deepl-key" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);box-sizing:border-box;">
+                            </div>
+                            <button id="tts-save-btn" onclick="window._saveTtsConfig && window._saveTtsConfig()"
+                                style="width:100%;padding:9px;border:none;border-radius:8px;background:var(--accent-color);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-family);">
+                                保存配置
+                            </button>
+                            <div id="tts-status" style="margin-top:8px;font-size:11px;text-align:center;color:var(--text-secondary);min-height:16px;"></div>
+                        </div>
+                    </div>
+
                     <p class="cs-group-label" style="margin-top:4px;">拍一拍</p>
                     <div class="cs-card">
                         <div style="padding:10px 14px;">
@@ -1726,6 +1763,79 @@
     </div>
 
 
+
+    <!-- ══════════════════════════════════════════════
+         声音克隆 Modal
+    ══════════════════════════════════════════════ -->
+    <div class="modal" id="voice-clone-modal">
+        <div class="modal-content">
+            <div class="modal-title">
+                <i class="fas fa-magic"></i><span>声音克隆</span>
+            </div>
+
+            <!-- Step 1: 上传音频 -->
+            <div id="voice-clone-step1">
+                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.7;">
+                    上传一段清晰的音频（建议 <strong>30秒～3分钟</strong>，安静环境录制，无背景噪音）。<br>
+                    支持 mp3、wav、m4a 格式。
+                </div>
+                <div id="voice-clone-upload-area"
+                    style="border:2px dashed var(--border-color);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+                    onclick="document.getElementById('voice-clone-file-input').click()">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:28px;color:var(--accent-color);margin-bottom:8px;display:block;"></i>
+                    <div id="voice-clone-upload-label" style="font-size:13px;color:var(--text-secondary);">点击选择音频文件</div>
+                </div>
+                <input type="file" id="voice-clone-file-input" accept="audio/*" style="display:none;">
+                <div style="margin-top:12px;">
+                    <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">声音名称（选填）</div>
+                    <input type="text" id="voice-clone-name" placeholder="例如：梦角" maxlength="30"
+                        style="width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:13px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);box-sizing:border-box;">
+                </div>
+                <button id="voice-clone-start-btn" onclick="window._startVoiceClone && window._startVoiceClone()"
+                    style="width:100%;margin-top:12px;padding:11px;border:none;border-radius:10px;background:var(--accent-color);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-family);">
+                    开始克隆
+                </button>
+                <div id="voice-clone-step1-status" style="margin-top:8px;font-size:12px;text-align:center;color:var(--text-secondary);min-height:18px;"></div>
+            </div>
+
+            <!-- Step 2: 克隆中 / 试听 -->
+            <div id="voice-clone-step2" style="display:none;">
+                <div id="voice-clone-loading" style="text-align:center;padding:20px 0;">
+                    <i class="fas fa-circle-notch fa-spin" style="font-size:32px;color:var(--accent-color);margin-bottom:12px;display:block;"></i>
+                    <div style="font-size:13px;color:var(--text-secondary);">正在克隆声音，请稍候…</div>
+                </div>
+                <div id="voice-clone-preview" style="display:none;">
+                    <div style="text-align:center;margin-bottom:16px;">
+                        <i class="fas fa-check-circle" style="font-size:36px;color:#4CAF50;margin-bottom:8px;display:block;"></i>
+                        <div style="font-size:14px;font-weight:600;color:var(--text-primary);">克隆成功！</div>
+                        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">试听一句，确认效果</div>
+                    </div>
+                    <div id="voice-clone-preview-text"
+                        style="background:rgba(var(--accent-color-rgb),0.06);border:1px solid rgba(var(--accent-color-rgb),0.2);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--text-secondary);margin-bottom:12px;text-align:center;font-style:italic;">
+                        「ねえ、今日も会えて嬉しいよ。」
+                    </div>
+                    <button id="voice-clone-play-preview" onclick="window._playVoicePreview && window._playVoicePreview()"
+                        style="width:100%;padding:10px;border:1.5px solid var(--accent-color);border-radius:10px;background:transparent;color:var(--accent-color);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-family);margin-bottom:8px;">
+                        <i class="fas fa-play"></i> 试听效果
+                    </button>
+                    <button onclick="window._confirmVoiceClone && window._confirmVoiceClone()"
+                        style="width:100%;padding:11px;border:none;border-radius:10px;background:var(--accent-color);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-family);">
+                        <i class="fas fa-check"></i> 确认使用
+                    </button>
+                    <button onclick="window._retryVoiceClone && window._retryVoiceClone()"
+                        style="width:100%;margin-top:8px;padding:9px;border:1px solid var(--border-color);border-radius:10px;background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;font-family:var(--font-family);">
+                        重新上传
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px 0 0;z-index:10;margin-top:8px;margin-left:-24px;margin-right:-24px;padding-left:24px;padding-right:24px;padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                <button class="modal-btn modal-btn-secondary" onclick="window._closeVoiceCloneModal && window._closeVoiceCloneModal()">
+                    <i class="fas fa-times"></i> 关闭
+                </button>
+            </div>
+        </div>
+    </div>
 
     <div class="modal" id="data-modal">
         <div class="modal-content">
@@ -2688,6 +2798,7 @@
     <script src="js/listeners-sticker.js"></script>
     <script src="js/features/companion.js"></script>
     <script src="js/features/companion-diary.js"></script>
+    <script src="js/features/voice-tts.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
