@@ -2,7 +2,9 @@
  * 首页改造 · 梦角伪语音模块
  *   - 对方文本消息 20% 概率渲染成语音条样式（下方贴原文字）
  *   - 用户没有发语音的功能
- *   - 点击伪语音条 = 假装播放（按时长走完）
+ *   - 点击伪语音条：
+ *       有 TTS 配置 → 翻译成日语 → ElevenLabs 生成真实语音播放
+ *       无配置     → 假装播放（按时长走完）
  * ──────────────────────────────────────────────────────────────── */
 (function () {
     'use strict';
@@ -134,7 +136,7 @@
             `;
 
             bubble.innerHTML = `
-                <div class="voice-bubble" data-fake="1" data-duration="${duration}" style="width:${widthPx}px;">
+                <div class="voice-bubble" data-fake="1" data-duration="${duration}" data-msg-id="${msgId}" style="width:${widthPx}px;">
                     ${waveSvg}
                     <span class="voice-bubble-duration">${duration}"</span>
                 </div>
@@ -142,31 +144,93 @@
             `;
         }
 
-        // ─────────── 点击伪语音条 = 假装播放 ───────────
+        // ─────────── 当前播放的 Audio 对象 ───────────
+        let _currentAudio = null;
         let currentBubble = null;
-        document.body.addEventListener('click', (e) => {
-            const bubble = e.target.closest('.voice-bubble');
-            if (!bubble) return;
-            const duration = Number(bubble.dataset.duration) || 3;
 
-            // 已在播这个 → 停
-            if (currentBubble === bubble && bubble.classList.contains('playing')) {
-                bubble.classList.remove('playing');
-                if (bubble._fakeTimer) {
-                    clearTimeout(bubble._fakeTimer);
-                    bubble._fakeTimer = null;
-                }
-                currentBubble = null;
-                return;
+        function _stopCurrentAudio() {
+            if (_currentAudio) {
+                _currentAudio.pause();
+                _currentAudio = null;
             }
-            // 切换播放对象
             if (currentBubble) {
-                currentBubble.classList.remove('playing');
+                currentBubble.classList.remove('playing', 'tts-loading');
                 if (currentBubble._fakeTimer) {
                     clearTimeout(currentBubble._fakeTimer);
                     currentBubble._fakeTimer = null;
                 }
+                currentBubble = null;
             }
+        }
+
+        // ─────────── 点击语音条 ───────────
+        document.body.addEventListener('click', async (e) => {
+            const bubble = e.target.closest('.voice-bubble');
+            if (!bubble) return;
+
+            // 正在加载中，忽略重复点击
+            if (bubble.classList.contains('tts-loading')) return;
+
+            // 已在播这个 → 停
+            if (currentBubble === bubble && bubble.classList.contains('playing')) {
+                _stopCurrentAudio();
+                return;
+            }
+
+            // 停掉之前的
+            _stopCurrentAudio();
+
+            const duration = Number(bubble.dataset.duration) || 3;
+            const msgId = bubble.dataset.msgId;
+
+            // ── 有 TTS 配置：走真实语音 ──
+            if (window.voiceTTS && window.voiceTTS.isTtsReady() && msgId) {
+                const msg = findMessage(msgId);
+                const textToSpeak = msg && msg.voice && msg.voice.fakeText
+                    ? msg.voice.fakeText
+                    : null;
+
+                if (textToSpeak) {
+                    currentBubble = bubble;
+                    bubble.classList.add('tts-loading');
+
+                    try {
+                        const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, textToSpeak);
+                        // 加载期间用户可能已点别处
+                        if (currentBubble !== bubble) return;
+
+                        bubble.classList.remove('tts-loading');
+                        bubble.classList.add('playing');
+
+                        const audio = new Audio(audioUrl);
+                        _currentAudio = audio;
+                        audio.play();
+                        audio.onended = () => {
+                            bubble.classList.remove('playing');
+                            if (currentBubble === bubble) currentBubble = null;
+                            if (_currentAudio === audio) _currentAudio = null;
+                        };
+                        audio.onerror = () => {
+                            bubble.classList.remove('playing');
+                            if (currentBubble === bubble) currentBubble = null;
+                            if (_currentAudio === audio) _currentAudio = null;
+                            if (typeof showNotification === 'function') {
+                                showNotification('语音播放失败', 'error');
+                            }
+                        };
+                    } catch (err) {
+                        bubble.classList.remove('tts-loading', 'playing');
+                        currentBubble = null;
+                        console.error('[voice-tts] 生成语音失败:', err);
+                        if (typeof showNotification === 'function') {
+                            showNotification('语音生成失败，请检查 API 配置', 'error');
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // ── 无配置：假装播放 ──
             currentBubble = bubble;
             bubble.classList.add('playing');
             bubble._fakeTimer = setTimeout(() => {
