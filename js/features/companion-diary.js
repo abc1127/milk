@@ -78,8 +78,8 @@
     // ─── 字卡随机抽取（梦角的备注） ──────────────────
     // 抽 1~2 句，从启用的字卡库里随机；30% 概率返回空（梦角不记录）
     window.pickCompanionDiaryCards = function() {
-        // 30% 概率不记录
-        if (Math.random() < 0.3) return '';
+        // 20% 概率不记录
+        if (Math.random() < 0.2) return '';
 
         try {
             // 字卡库变量是模块作用域的 customReplies，全局暴露在 window._customReplies
