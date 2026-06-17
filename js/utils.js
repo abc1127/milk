@@ -521,6 +521,12 @@ async function importAllData(file) {
                 label: '陪伴日记',
                 indexedDBNeedles: ['companionDiary', 'companionDiaryBg', 'companionDiaryBgGallery'],
                 localStorageNeedles: []
+            },
+            {
+                id: 'tts',
+                label: '真实语音配置',
+                indexedDBNeedles: [],
+                localStorageNeedles: ['voiceTtsConfig']
             }
         ];
 
