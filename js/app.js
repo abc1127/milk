@@ -691,6 +691,15 @@ function selectCompanionMode(mode) {
         if (model) model.value = cfg.model       || 'speech-02-turbo';
         if (vId)   vId.value   = cfg.voiceId     || '';
         if (dKey)  dKey.value  = cfg.deeplKey    || '';
+        // 语言按钮高亮
+        const savedLang = cfg.targetLang || 'JA';
+        document.querySelectorAll('.tts-lang-btn').forEach(btn => {
+            const isActive = btn.dataset.lang === savedLang;
+            btn.style.border = isActive ? '1px solid var(--accent-color)' : '1px solid var(--border-color)';
+            btn.style.background = isActive ? 'rgba(var(--accent-color-rgb),0.1)' : 'transparent';
+            btn.style.color = isActive ? 'var(--accent-color)' : 'var(--text-secondary)';
+            btn.style.fontWeight = isActive ? '600' : 'normal';
+        });
         _updateTtsStatus();
     }
 
@@ -707,6 +716,17 @@ function selectCompanionMode(mode) {
     }
 
     // ─── 保存配置 ───
+    // ─── 语言切换 ───
+    window._setTtsLang = function(lang, btn) {
+        document.querySelectorAll('.tts-lang-btn').forEach(b => {
+            const isActive = b === btn;
+            b.style.border = isActive ? '1px solid var(--accent-color)' : '1px solid var(--border-color)';
+            b.style.background = isActive ? 'rgba(var(--accent-color-rgb),0.1)' : 'transparent';
+            b.style.color = isActive ? 'var(--accent-color)' : 'var(--text-secondary)';
+            b.style.fontWeight = isActive ? '600' : 'normal';
+        });
+    };
+
     window._saveTtsConfig = function () {
         if (!window.voiceTTS) return;
         const minimaxKey = (document.getElementById('tts-minimax-key')?.value || '').trim();
@@ -714,7 +734,8 @@ function selectCompanionMode(mode) {
         const model      = (document.getElementById('tts-model')?.value       || '').trim();
         const voiceId    = (document.getElementById('tts-voice-id')?.value    || '').trim();
         const deeplKey   = (document.getElementById('tts-deepl-key')?.value   || '').trim();
-        window.voiceTTS.saveTtsConfig(minimaxKey, groupId, voiceId, model, deeplKey);
+        const targetLang = document.querySelector('.tts-lang-btn[style*="accent-color"]')?.dataset.lang || 'JA';
+        window.voiceTTS.saveTtsConfig(minimaxKey, groupId, voiceId, model, deeplKey, targetLang);
         _updateTtsStatus();
         if (typeof showNotification === 'function') {
             showNotification('配置已保存', 'success');
@@ -848,7 +869,7 @@ function selectCompanionMode(mode) {
             // 先把临时 voiceId 存进配置用于试听（不影响真正保存）
             const cfg = window.voiceTTS.getTtsConfig();
             const origId = cfg.voiceId;
-            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model, cfg.deeplKey);
+            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model, cfg.deeplKey, cfg.targetLang);
 
             const audioUrl = await window.voiceTTS.previewClonedVoice(_clonedVoiceId);
             if (_previewAudio) _previewAudio.pause();
@@ -859,7 +880,7 @@ function selectCompanionMode(mode) {
             };
 
             // 恢复原 voiceId（等确认后才真正写入）
-            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, origId, cfg.model, cfg.deeplKey);
+            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, origId, cfg.model, cfg.deeplKey, cfg.targetLang);
         } catch (err) {
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 试听效果'; }
             if (typeof showNotification === 'function') {
@@ -872,7 +893,7 @@ function selectCompanionMode(mode) {
     window._confirmVoiceClone = function () {
         if (!_clonedVoiceId || !window.voiceTTS) return;
         const cfg = window.voiceTTS.getTtsConfig();
-        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model, cfg.deeplKey);
+        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model, cfg.deeplKey, cfg.targetLang);
 
         // 同步回设置页输入框
         const vIdInput = document.getElementById('tts-voice-id');
