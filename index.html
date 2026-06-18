@@ -1359,8 +1359,8 @@
                                     <button onclick="window._setTtsLang && window._setTtsLang('DE', this)" class="tts-lang-btn" data-lang="DE" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">德语</button>
                                 </div>
                             </div>
-                            <button id="tts-save-btn" onclick="window._saveTtsConfig && window._saveTtsConfig()"
-                                style="width:100%;padding:9px;border:none;border-radius:8px;background:var(--accent-color);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-family);">
+                            <button id="tts-save-btn" onclick="window._saveTtsConfig && window._saveTtsConfig()" disabled
+                                style="width:100%;padding:9px;border:none;border-radius:8px;background:var(--border-color);color:var(--text-secondary);font-size:13px;font-weight:600;cursor:not-allowed;font-family:var(--font-family);opacity:0.65;transition:all 0.2s ease;">
                                 保存配置
                             </button>
                             <div id="tts-status" style="margin-top:8px;font-size:11px;text-align:center;color:var(--text-secondary);min-height:16px;"></div>

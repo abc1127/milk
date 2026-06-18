@@ -677,63 +677,153 @@ function selectCompanionMode(mode) {
 (function () {
     'use strict';
 
-    // ─── 初始化：打开聊天设置时填入已保存的值 ───
-    function _initTtsFields() {
-        if (!window.voiceTTS) return;
-        const cfg = window.voiceTTS.getTtsConfig();
-        const mKey  = document.getElementById('tts-minimax-key');
-        const gId   = document.getElementById('tts-group-id');
-        const model = document.getElementById('tts-model');
-        const vId   = document.getElementById('tts-voice-id');
-        if (mKey)  mKey.value  = cfg.minimaxKey || '';
-        if (gId)   gId.value   = cfg.groupId    || '';
-        if (model) model.value = cfg.model       || 'speech-02-turbo';
-        if (vId)   vId.value   = cfg.voiceId     || '';
-        // 语言按钮高亮
-        const savedLang = cfg.targetLang || 'JA';
+    let _lastSavedTtsConfig = null;
+    let _ttsConfigDirty = false;
+    let _ttsFieldsBound = false;
+
+    const TTS_FIELD_IDS = ['tts-minimax-key', 'tts-group-id', 'tts-model', 'tts-voice-id'];
+
+    function _normalizeTtsConfig(cfg) {
+        cfg = cfg || {};
+        return {
+            minimaxKey: String(cfg.minimaxKey || '').trim(),
+            groupId: String(cfg.groupId || '').trim(),
+            model: String(cfg.model || 'speech-02-turbo').trim() || 'speech-02-turbo',
+            voiceId: String(cfg.voiceId || '').trim(),
+            targetLang: String(cfg.targetLang || 'JA').trim() || 'JA'
+        };
+    }
+
+    function _readTtsFormConfig() {
+        return _normalizeTtsConfig({
+            minimaxKey: document.getElementById('tts-minimax-key')?.value,
+            groupId: document.getElementById('tts-group-id')?.value,
+            model: document.getElementById('tts-model')?.value,
+            voiceId: document.getElementById('tts-voice-id')?.value,
+            targetLang: _getSelectedTtsLang()
+        });
+    }
+
+    function _isSameTtsConfig(a, b) {
+        const left = _normalizeTtsConfig(a);
+        const right = _normalizeTtsConfig(b);
+        return left.minimaxKey === right.minimaxKey &&
+            left.groupId === right.groupId &&
+            left.model === right.model &&
+            left.voiceId === right.voiceId &&
+            left.targetLang === right.targetLang;
+    }
+
+    function _paintTtsLangButtons(selectedLang) {
         document.querySelectorAll('.tts-lang-btn').forEach(btn => {
-            const isActive = btn.dataset.lang === savedLang;
+            const isActive = btn.dataset.lang === selectedLang;
+            btn.classList.toggle('active', isActive);
             btn.style.border = isActive ? '1px solid var(--accent-color)' : '1px solid var(--border-color)';
             btn.style.background = isActive ? 'rgba(var(--accent-color-rgb),0.1)' : 'transparent';
             btn.style.color = isActive ? 'var(--accent-color)' : 'var(--text-secondary)';
             btn.style.fontWeight = isActive ? '600' : 'normal';
         });
+    }
+
+    function _getSelectedTtsLang() {
+        return document.querySelector('.tts-lang-btn.active')?.dataset.lang || 'JA';
+    }
+
+    function _hasSavedTtsConfig() {
+        const cfg = _normalizeTtsConfig(_lastSavedTtsConfig || {});
+        return !!(cfg.minimaxKey || cfg.groupId || cfg.voiceId || cfg.model !== 'speech-02-turbo' || cfg.targetLang !== 'JA');
+    }
+
+    function _applyTtsSaveButtonState(isDirty) {
+        const saveBtn = document.getElementById('tts-save-btn');
+        if (!saveBtn) return;
+
+        saveBtn.disabled = !isDirty;
+        saveBtn.textContent = isDirty ? '保存配置' : (_hasSavedTtsConfig() ? '已保存' : '保存配置');
+        saveBtn.style.background = isDirty ? 'var(--accent-color)' : 'var(--border-color)';
+        saveBtn.style.color = isDirty ? '#fff' : 'var(--text-secondary)';
+        saveBtn.style.cursor = isDirty ? 'pointer' : 'not-allowed';
+        saveBtn.style.opacity = isDirty ? '1' : '0.65';
+        saveBtn.style.boxShadow = isDirty ? '0 4px 14px rgba(var(--accent-color-rgb),0.24)' : 'none';
+        saveBtn.style.transform = 'none';
+    }
+
+    function _setTtsDirty(isDirty) {
+        _ttsConfigDirty = !!isDirty;
+        _applyTtsSaveButtonState(_ttsConfigDirty);
         _updateTtsStatus();
+    }
+
+    function _checkTtsDirty() {
+        if (!_lastSavedTtsConfig && window.voiceTTS) {
+            _lastSavedTtsConfig = _normalizeTtsConfig(window.voiceTTS.getTtsConfig());
+        }
+        _setTtsDirty(!_isSameTtsConfig(_readTtsFormConfig(), _lastSavedTtsConfig));
+    }
+
+    function _bindTtsFieldListeners() {
+        if (_ttsFieldsBound) return;
+        const fields = TTS_FIELD_IDS
+            .map(id => document.getElementById(id))
+            .filter(Boolean);
+        if (fields.length !== TTS_FIELD_IDS.length) return;
+
+        fields.forEach(el => {
+            el.addEventListener('input', _checkTtsDirty);
+            el.addEventListener('change', _checkTtsDirty);
+        });
+        _ttsFieldsBound = true;
+    }
+
+    // ─── 初始化：打开聊天设置时填入已保存的值 ───
+    function _initTtsFields() {
+        if (!window.voiceTTS) return;
+        const cfg = _normalizeTtsConfig(window.voiceTTS.getTtsConfig());
+        const mKey  = document.getElementById('tts-minimax-key');
+        const gId   = document.getElementById('tts-group-id');
+        const model = document.getElementById('tts-model');
+        const vId   = document.getElementById('tts-voice-id');
+        if (mKey)  mKey.value  = cfg.minimaxKey;
+        if (gId)   gId.value   = cfg.groupId;
+        if (model) model.value = cfg.model;
+        if (vId)   vId.value   = cfg.voiceId;
+        _lastSavedTtsConfig = cfg;
+        _paintTtsLangButtons(cfg.targetLang);
+        _bindTtsFieldListeners();
+        _setTtsDirty(false);
     }
 
     function _updateTtsStatus() {
         const el = document.getElementById('tts-status');
         if (!el || !window.voiceTTS) return;
+        if (_ttsConfigDirty) {
+            el.style.color = 'var(--accent-color)';
+            el.textContent = '配置有修改，点击保存配置后才会生效';
+            return;
+        }
         if (window.voiceTTS.isTtsReady()) {
             el.style.color = '#4CAF50';
-            el.textContent = '✓ 配置完整，真实语音已启用';
+            el.textContent = '✓ 配置已保存，真实语音已启用';
         } else {
             el.style.color = 'var(--text-secondary)';
             el.textContent = '填写 MiniMax API Key、Group ID 和 Voice ID 后保存即可启用';
         }
     }
 
-    // ─── 保存配置 ───
     // ─── 语言切换 ───
-    window._setTtsLang = function(lang, btn) {
-        document.querySelectorAll('.tts-lang-btn').forEach(b => {
-            const isActive = b === btn;
-            b.style.border = isActive ? '1px solid var(--accent-color)' : '1px solid var(--border-color)';
-            b.style.background = isActive ? 'rgba(var(--accent-color-rgb),0.1)' : 'transparent';
-            b.style.color = isActive ? 'var(--accent-color)' : 'var(--text-secondary)';
-            b.style.fontWeight = isActive ? '600' : 'normal';
-        });
+    window._setTtsLang = function(lang) {
+        const nextLang = lang || 'JA';
+        _paintTtsLangButtons(nextLang);
+        _checkTtsDirty();
     };
 
+    // ─── 保存配置 ───
     window._saveTtsConfig = function () {
-        if (!window.voiceTTS) return;
-        const minimaxKey = (document.getElementById('tts-minimax-key')?.value || '').trim();
-        const groupId    = (document.getElementById('tts-group-id')?.value    || '').trim();
-        const model      = (document.getElementById('tts-model')?.value       || '').trim();
-        const voiceId    = (document.getElementById('tts-voice-id')?.value    || '').trim();
-        const targetLang = document.querySelector('.tts-lang-btn[style*="accent-color"]')?.dataset.lang || 'JA';
-        window.voiceTTS.saveTtsConfig(minimaxKey, groupId, voiceId, model, targetLang);
-        _updateTtsStatus();
+        if (!window.voiceTTS || !_ttsConfigDirty) return;
+        const cfg = _readTtsFormConfig();
+        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, cfg.voiceId, cfg.model, cfg.targetLang);
+        _lastSavedTtsConfig = cfg;
+        _setTtsDirty(false);
         if (typeof showNotification === 'function') {
             showNotification('配置已保存', 'success');
         }
@@ -889,17 +979,16 @@ function selectCompanionMode(mode) {
     // ─── 确认使用克隆的声音 ───
     window._confirmVoiceClone = function () {
         if (!_clonedVoiceId || !window.voiceTTS) return;
-        const cfg = window.voiceTTS.getTtsConfig();
-        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model, cfg.targetLang);
 
-        // 同步回设置页输入框
+        // 同步回设置页输入框，但不直接保存。
+        // 让用户统一点击「保存配置」后再生效，避免配置被悄悄改掉。
         const vIdInput = document.getElementById('tts-voice-id');
         if (vIdInput) vIdInput.value = _clonedVoiceId;
-        _updateTtsStatus();
+        _checkTtsDirty();
 
         window._closeVoiceCloneModal();
         if (typeof showNotification === 'function') {
-            showNotification('声音已保存，开始聊天试试吧！', 'success');
+            showNotification('声音 ID 已填入，请点击保存配置后生效', 'success');
         }
     };
 

@@ -14,8 +14,11 @@
     const DEFAULT_TRANSLATE_MODEL = 'MiniMax-M2.7-highspeed';
     const TRANSLATE_MAX_TOKENS = 512;
 
-    // ─────────── 内存音频缓存：msgId → blob URL ───────────
+    // ─────────── 内存缓存：避免重复点击时反复请求接口 ───────────
     const _audioCache = {};
+    const _audioPending = {};
+    const _translationCache = {};
+    const _translationPending = {};
 
     // ─────────── 读写配置 ───────────
     function _getConfig() {
@@ -208,30 +211,44 @@
         const sourceText = String(text || '').trim();
         if (!sourceText) return '';
 
-        const body = {
-            model: DEFAULT_TRANSLATE_MODEL,
-            stream: false,
-            max_completion_tokens: TRANSLATE_MAX_TOKENS,
-            temperature: 0.2,
-            top_p: 0.9,
-            messages: [
-                {
-                    role: 'system',
-                    name: 'MiniMax AI',
-                    content: `${langInfo.instruction} Return only the translated ${langInfo.name} text. No quotes, no notes, no markdown.`
-                },
-                {
-                    role: 'user',
-                    name: 'user',
-                    content: sourceText
-                }
-            ]
-        };
+        const cacheKey = [sourceText, lang].join('|');
+        if (_translationCache[cacheKey]) return _translationCache[cacheKey];
+        if (_translationPending[cacheKey]) return _translationPending[cacheKey];
 
-        const data = await _postMiniMaxText(body, minimaxKey, groupId);
-        const translated = _cleanTranslatedText(_extractMiniMaxContent(data));
-        if (!translated) throw new Error('MiniMax 翻译返回为空');
-        return lang === 'JA' ? _adjustTone(translated) : translated;
+        _translationPending[cacheKey] = (async () => {
+            const body = {
+                model: DEFAULT_TRANSLATE_MODEL,
+                stream: false,
+                max_completion_tokens: TRANSLATE_MAX_TOKENS,
+                temperature: 0.2,
+                top_p: 0.9,
+                messages: [
+                    {
+                        role: 'system',
+                        name: 'MiniMax AI',
+                        content: `${langInfo.instruction} Return only the translated ${langInfo.name} text. No quotes, no notes, no markdown.`
+                    },
+                    {
+                        role: 'user',
+                        name: 'user',
+                        content: sourceText
+                    }
+                ]
+            };
+
+            const data = await _postMiniMaxText(body, minimaxKey, groupId);
+            const translated = _cleanTranslatedText(_extractMiniMaxContent(data));
+            if (!translated) throw new Error('MiniMax 翻译返回为空');
+            return lang === 'JA' ? _adjustTone(translated) : translated;
+        })();
+
+        try {
+            const translated = await _translationPending[cacheKey];
+            _translationCache[cacheKey] = translated;
+            return translated;
+        } finally {
+            delete _translationPending[cacheKey];
+        }
     }
 
     function _hexToAudioUrl(hex, emptyMessage) {
@@ -293,11 +310,20 @@
         const { voiceId, model, targetLang } = _getConfig();
         const cacheKey = [msgId || chineseText, voiceId || '', model || DEFAULT_TTS_MODEL, targetLang || 'JA'].join('|');
         if (_audioCache[cacheKey]) return _audioCache[cacheKey];
+        if (_audioPending[cacheKey]) return _audioPending[cacheKey];
 
-        const translatedText = await translateToJapanese(chineseText);
-        const blobUrl = await generateSpeech(translatedText);
-        _audioCache[cacheKey] = blobUrl;
-        return blobUrl;
+        _audioPending[cacheKey] = (async () => {
+            const translatedText = await translateToJapanese(chineseText);
+            const blobUrl = await generateSpeech(translatedText);
+            _audioCache[cacheKey] = blobUrl;
+            return blobUrl;
+        })();
+
+        try {
+            return await _audioPending[cacheKey];
+        } finally {
+            delete _audioPending[cacheKey];
+        }
     }
 
     // ─────────── 声音克隆：上传音频 → 返回 Voice ID ───────────
