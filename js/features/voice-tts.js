@@ -256,9 +256,18 @@
             };
 
             const data = await _postMiniMaxText(body, minimaxKey, groupId);
-            const translated = _cleanTranslatedText(_extractMiniMaxContent(data));
+            let translated = _cleanTranslatedText(_extractMiniMaxContent(data));
+
+            // 返回空时重试一次，提高 temperature 让模型更愿意输出
             if (!translated) {
-                console.warn('[voice-tts] 翻译返回为空，使用原文');
+                console.warn('[voice-tts] 翻译返回为空，重试一次...');
+                const retryBody = { ...body, temperature: 0.3 };
+                const retryData = await _postMiniMaxText(retryBody, minimaxKey, groupId);
+                translated = _cleanTranslatedText(_extractMiniMaxContent(retryData));
+            }
+
+            if (!translated) {
+                console.warn('[voice-tts] 重试后仍为空，使用原文');
                 return sourceText;
             }
             return lang === 'JA' ? _adjustTone(translated) : translated;
