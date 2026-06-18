@@ -904,7 +904,22 @@ function renderFavorites() {
             btn.dataset.playing = '1';
             btn.style.opacity = '0.6';
             try {
-                const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
+                let audioUrl = null;
+
+                // 先查 IndexedDB 持久化缓存
+                try {
+                    const buf = await localforage.getItem(`favAudio_${msgId}`);
+                    if (buf) {
+                        const blob = new Blob([buf], { type: 'audio/mp3' });
+                        audioUrl = URL.createObjectURL(blob);
+                    }
+                } catch (e) {}
+
+                // 没有缓存就正常请求 TTS
+                if (!audioUrl) {
+                    audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
+                }
+
                 const audio = new Audio(audioUrl);
                 audio.play();
                 audio.onended = () => { btn.dataset.playing = '0'; btn.style.opacity = '1'; };
