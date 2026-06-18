@@ -917,6 +917,8 @@
             gap: 10px;
             align-items: var(--avatar-align, flex-end);
             flex-shrink: 0;
+            -webkit-user-select: none;
+            user-select: none;
         }
         .message-avatar {
             width: var(--in-chat-avatar-size);
