@@ -1,15 +1,18 @@
-/* ────────────────────────────────────────────────────────────────
- * voice-tts.js · 真实语音模块
- *   - MyMemory 翻译中文 → 日语（免费，无需注册）
- *   - 语气后处理：去敬语，调整为冷漠/嘴硬/命令式混合风格
- *   - MiniMax TTS 生成日语语音 + 声音克隆
- *   - 生成的音频 blob 缓存在内存，同一条消息不重复请求
- * ──────────────────────────────────────────────────────────────── */
+/* ---------------------------------------------------------------
+ * voice-tts.js · real voice module
+ *   - MiniMax translation: Chinese -> selected target language
+ *   - Tone polish for Japanese voice output
+ *   - MiniMax TTS + voice cloning
+ *   - Generated audio blob URLs are cached in memory per message
+ * --------------------------------------------------------------- */
 (function () {
     'use strict';
 
     // ─────────── 存储 Key ───────────
     const STORE_KEY = 'voiceTtsConfig';
+    const DEFAULT_TTS_MODEL = 'speech-02-turbo';
+    const DEFAULT_TRANSLATE_MODEL = 'MiniMax-M2.7-highspeed';
+    const TRANSLATE_MAX_TOKENS = 512;
 
     // ─────────── 内存音频缓存：msgId → blob URL ───────────
     const _audioCache = {};
@@ -28,8 +31,16 @@
 
     function getTtsConfig() { return _getConfig(); }
 
-    function saveTtsConfig(minimaxKey, groupId, voiceId, model, deeplKey, targetLang) {
-        _saveConfig({ minimaxKey, groupId, voiceId, model: model || 'speech-02-turbo', deeplKey: deeplKey || '', targetLang: targetLang || 'JA' });
+    function saveTtsConfig(minimaxKey, groupId, voiceId, model, maybeTargetLang, legacyTargetLang) {
+        // Backward compatible with the older six-argument save signature.
+        const targetLang = legacyTargetLang || maybeTargetLang || 'JA';
+        _saveConfig({
+            minimaxKey,
+            groupId,
+            voiceId,
+            model: model || DEFAULT_TTS_MODEL,
+            targetLang: targetLang || 'JA'
+        });
     }
 
     function isTtsReady() {
@@ -93,62 +104,152 @@
         return result;
     }
 
-    // ─────────── DeepL 翻译（有key用DeepL，无key fallback到MyMemory）───────────
-    async function translateToJapanese(text) {
-        const { deeplKey, targetLang } = _getConfig();
-        const lang = targetLang || 'JA';
+    // ---------------- MiniMax translation ----------------
+    const TARGET_LANG_INFO = {
+        JA: {
+            name: 'Japanese',
+            ttsBoost: 'Japanese',
+            instruction: 'Translate into natural spoken Japanese. Keep it short, character-like, slightly cool/blunt, and suitable for being spoken aloud by a TTS voice. Do not add explanations.'
+        },
+        EN: {
+            name: 'English',
+            ttsBoost: 'English',
+            instruction: 'Translate into natural spoken English. Keep it short and suitable for being spoken aloud by a TTS voice. Do not add explanations.'
+        },
+        KO: {
+            name: 'Korean',
+            ttsBoost: 'Korean',
+            instruction: 'Translate into natural spoken Korean. Keep it short and suitable for being spoken aloud by a TTS voice. Do not add explanations.'
+        },
+        DE: {
+            name: 'German',
+            ttsBoost: 'German',
+            instruction: 'Translate into natural spoken German. Keep it short and suitable for being spoken aloud by a TTS voice. Do not add explanations.'
+        }
+    };
 
-        // MyMemory 语言代码映射
-        const myMemoryLangMap = { 'JA': 'ja', 'EN': 'en', 'KO': 'ko', 'DE': 'de' };
-        const myMemoryTarget = myMemoryLangMap[lang] || 'ja';
+    function _getLangInfo(lang) {
+        return TARGET_LANG_INFO[lang] || TARGET_LANG_INFO.JA;
+    }
 
-        if (deeplKey && deeplKey.trim()) {
-            // 用 DeepL
-            const body = {
-                text: [text],
-                target_lang: lang
-            };
-            // 只有日语才加 formality
-            if (lang === 'JA') body.formality = 'less';
+    function _getTtsLanguageBoost(lang) {
+        return _getLangInfo(lang).ttsBoost || 'auto';
+    }
 
-            const res = await fetch('https://api-free.deepl.com/v2/translate', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `DeepL-Auth-Key ${deeplKey.trim()}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-            if (!res.ok) {
-                const err = await res.text();
-                throw new Error(`DeepL 翻译失败 (${res.status}): ${err}`);
+    function _getMiniMaxTextEndpoints(groupId) {
+        const endpoints = [];
+        if (groupId) {
+            endpoints.push(`https://api.minimax.chat/v1/text/chatcompletion_v2?GroupId=${encodeURIComponent(groupId)}`);
+        }
+        endpoints.push('https://api.minimax.io/v1/text/chatcompletion_v2');
+        endpoints.push('https://api.minimaxi.com/v1/text/chatcompletion_v2');
+        endpoints.push('https://api.minimaxi.com/v1/chat/completions');
+        return endpoints;
+    }
+
+    function _stripThinkBlocks(text) {
+        return String(text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
+
+    function _cleanTranslatedText(text) {
+        return _stripThinkBlocks(text)
+            .replace(/^\s*(?:译文|翻译|Translation)\s*[:：]\s*/i, '')
+            .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
+            .trim();
+    }
+
+    function _extractMiniMaxContent(data) {
+        const message = data?.choices?.[0]?.message;
+        if (typeof message?.content === 'string') return message.content;
+        if (Array.isArray(message?.content)) {
+            return message.content.map(part => part?.text || part?.content || '').join('');
+        }
+        if (typeof data?.reply === 'string') return data.reply;
+        if (typeof data?.choices?.[0]?.text === 'string') return data.choices[0].text;
+        return '';
+    }
+
+    async function _postMiniMaxText(body, minimaxKey, groupId) {
+        let lastError = null;
+        for (const endpoint of _getMiniMaxTextEndpoints(groupId)) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${minimaxKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`${res.status}: ${errText}`);
+                }
+
+                const data = await res.json();
+                if (data?.base_resp && Number(data.base_resp.status_code || 0) !== 0) {
+                    throw new Error(data.base_resp.status_msg || `base_resp ${data.base_resp.status_code}`);
+                }
+                return data;
+            } catch (err) {
+                lastError = err;
+                console.warn('[voice-tts] MiniMax translation endpoint failed:', endpoint, err);
             }
-            const data = await res.json();
-            const translated = data.translations[0].text;
-            // 只有日语做语气后处理
-            return lang === 'JA' ? _adjustTone(translated) : translated;
         }
+        throw new Error(`MiniMax 翻译失败：${lastError?.message || '未知错误'}`);
+    }
 
-        // fallback：MyMemory
-        const encoded = encodeURIComponent(text);
-        const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=zh|${myMemoryTarget}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`MyMemory 翻译请求失败 (${res.status})`);
-        const data = await res.json();
-        if (data.responseStatus !== 200) {
-            throw new Error(`MyMemory 翻译失败: ${data.responseDetails || '未知错误'}`);
-        }
-        const translated = data.responseData.translatedText;
+    async function translateToJapanese(text) {
+        const { minimaxKey, groupId, targetLang } = _getConfig();
+        if (!minimaxKey) throw new Error('请先填写 MiniMax API Key');
+        const lang = targetLang || 'JA';
+        const langInfo = _getLangInfo(lang);
+        const sourceText = String(text || '').trim();
+        if (!sourceText) return '';
+
+        const body = {
+            model: DEFAULT_TRANSLATE_MODEL,
+            stream: false,
+            max_completion_tokens: TRANSLATE_MAX_TOKENS,
+            temperature: 0.2,
+            top_p: 0.9,
+            messages: [
+                {
+                    role: 'system',
+                    name: 'MiniMax AI',
+                    content: `${langInfo.instruction} Return only the translated ${langInfo.name} text. No quotes, no notes, no markdown.`
+                },
+                {
+                    role: 'user',
+                    name: 'user',
+                    content: sourceText
+                }
+            ]
+        };
+
+        const data = await _postMiniMaxText(body, minimaxKey, groupId);
+        const translated = _cleanTranslatedText(_extractMiniMaxContent(data));
+        if (!translated) throw new Error('MiniMax 翻译返回为空');
         return lang === 'JA' ? _adjustTone(translated) : translated;
     }
 
-    // ─────────── MiniMax TTS ───────────
-    async function generateSpeech(japaneseText) {
-        const { minimaxKey, groupId, voiceId, model } = _getConfig();
-        if (!minimaxKey || !groupId || !voiceId) throw new Error('未配置 MiniMax Key、Group ID 或 Voice ID');
-        const modelName = model || 'speech-02-turbo';
+    function _hexToAudioUrl(hex, emptyMessage) {
+        if (!hex || typeof hex !== 'string') throw new Error(emptyMessage || 'MiniMax TTS 返回数据异常');
+        const pairs = hex.match(/.{1,2}/g);
+        if (!pairs || !pairs.length) throw new Error(emptyMessage || 'MiniMax TTS 返回数据异常');
+        const bytes = new Uint8Array(pairs.map(b => parseInt(b, 16)));
+        const blob = new Blob([bytes], { type: 'audio/mp3' });
+        return URL.createObjectURL(blob);
+    }
 
-        const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${groupId}`, {
+    // ─────────── MiniMax TTS ───────────
+    async function generateSpeech(translatedText) {
+        const { minimaxKey, groupId, voiceId, model, targetLang } = _getConfig();
+        if (!minimaxKey || !groupId || !voiceId) throw new Error('未配置 MiniMax Key、Group ID 或 Voice ID');
+        const modelName = model || DEFAULT_TTS_MODEL;
+
+        const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${encodeURIComponent(groupId)}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${minimaxKey}`,
@@ -156,8 +257,10 @@
             },
             body: JSON.stringify({
                 model: modelName,
-                text: japaneseText,
+                text: translatedText,
                 stream: false,
+                language_boost: _getTtsLanguageBoost(targetLang || 'JA'),
+                output_format: 'hex',
                 voice_setting: {
                     voice_id: voiceId,
                     speed: 1.0,
@@ -165,9 +268,10 @@
                     pitch: 0
                 },
                 audio_setting: {
-                    audio_sample_rate: 32000,
+                    sample_rate: 32000,
                     bitrate: 128000,
-                    format: 'mp3'
+                    format: 'mp3',
+                    channel: 1
                 }
             })
         });
@@ -178,24 +282,21 @@
         }
 
         const data = await res.json();
-        if (!data.data || !data.data.audio) {
-            throw new Error('MiniMax TTS 返回数据异常');
+        if (data?.base_resp && Number(data.base_resp.status_code || 0) !== 0) {
+            throw new Error(`MiniMax TTS 失败：${data.base_resp.status_msg || data.base_resp.status_code}`);
         }
-
-        // MiniMax 返回 hex 编码的音频，需要转成 blob
-        const hex = data.data.audio;
-        const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-        const blob = new Blob([bytes], { type: 'audio/mp3' });
-        return URL.createObjectURL(blob);
+        return _hexToAudioUrl(data?.data?.audio, 'MiniMax TTS 返回数据异常');
     }
 
     // ─────────── 主入口：翻译 + TTS（带缓存）───────────
     async function getAudioForMessage(msgId, chineseText) {
-        if (_audioCache[msgId]) return _audioCache[msgId];
+        const { voiceId, model, targetLang } = _getConfig();
+        const cacheKey = [msgId || chineseText, voiceId || '', model || DEFAULT_TTS_MODEL, targetLang || 'JA'].join('|');
+        if (_audioCache[cacheKey]) return _audioCache[cacheKey];
 
-        const japaneseText = await translateToJapanese(chineseText);
-        const blobUrl = await generateSpeech(japaneseText);
-        _audioCache[msgId] = blobUrl;
+        const translatedText = await translateToJapanese(chineseText);
+        const blobUrl = await generateSpeech(translatedText);
+        _audioCache[cacheKey] = blobUrl;
         return blobUrl;
     }
 
@@ -252,10 +353,10 @@
     async function previewClonedVoice(voiceId) {
         const { minimaxKey, groupId, model } = _getConfig();
         if (!minimaxKey || !groupId) throw new Error('未配置 MiniMax Key 或 Group ID');
-        const modelName = model || 'speech-02-turbo';
+        const modelName = model || DEFAULT_TTS_MODEL;
         const previewText = 'おい、ちゃんと聞いてるか。…まあ、会えてよかったけどな。';
 
-        const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${groupId}`, {
+        const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${encodeURIComponent(groupId)}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${minimaxKey}`,
@@ -265,6 +366,8 @@
                 model: modelName,
                 text: previewText,
                 stream: false,
+                language_boost: 'Japanese',
+                output_format: 'hex',
                 voice_setting: {
                     voice_id: voiceId,
                     speed: 1.0,
@@ -272,9 +375,10 @@
                     pitch: 0
                 },
                 audio_setting: {
-                    audio_sample_rate: 32000,
+                    sample_rate: 32000,
                     bitrate: 128000,
-                    format: 'mp3'
+                    format: 'mp3',
+                    channel: 1
                 }
             })
         });
@@ -285,12 +389,10 @@
         }
 
         const data = await res.json();
-        if (!data.data || !data.data.audio) throw new Error('试听返回数据异常');
-
-        const hex = data.data.audio;
-        const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-        const blob = new Blob([bytes], { type: 'audio/mp3' });
-        return URL.createObjectURL(blob);
+        if (data?.base_resp && Number(data.base_resp.status_code || 0) !== 0) {
+            throw new Error(`试听失败：${data.base_resp.status_msg || data.base_resp.status_code}`);
+        }
+        return _hexToAudioUrl(data?.data?.audio, '试听返回数据异常');
     }
 
     // ─────────── 暴露给外部 ───────────
