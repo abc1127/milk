@@ -293,6 +293,7 @@ html[data-theme="dark"] .companion-mode-card i {
     position: absolute;
     inset: 0;
     z-index: 1;
+    pointer-events: none;
     background: linear-gradient(
         to bottom,
         rgba(0,0,0,0.38) 0%,
