@@ -685,10 +685,12 @@ function selectCompanionMode(mode) {
         const gId   = document.getElementById('tts-group-id');
         const model = document.getElementById('tts-model');
         const vId   = document.getElementById('tts-voice-id');
+        const dKey  = document.getElementById('tts-deepl-key');
         if (mKey)  mKey.value  = cfg.minimaxKey || '';
         if (gId)   gId.value   = cfg.groupId    || '';
         if (model) model.value = cfg.model       || 'speech-02-turbo';
         if (vId)   vId.value   = cfg.voiceId     || '';
+        if (dKey)  dKey.value  = cfg.deeplKey    || '';
         _updateTtsStatus();
     }
 
@@ -711,7 +713,8 @@ function selectCompanionMode(mode) {
         const groupId    = (document.getElementById('tts-group-id')?.value    || '').trim();
         const model      = (document.getElementById('tts-model')?.value       || '').trim();
         const voiceId    = (document.getElementById('tts-voice-id')?.value    || '').trim();
-        window.voiceTTS.saveTtsConfig(minimaxKey, groupId, voiceId, model);
+        const deeplKey   = (document.getElementById('tts-deepl-key')?.value   || '').trim();
+        window.voiceTTS.saveTtsConfig(minimaxKey, groupId, voiceId, model, deeplKey);
         _updateTtsStatus();
         if (typeof showNotification === 'function') {
             showNotification('配置已保存', 'success');
@@ -845,7 +848,7 @@ function selectCompanionMode(mode) {
             // 先把临时 voiceId 存进配置用于试听（不影响真正保存）
             const cfg = window.voiceTTS.getTtsConfig();
             const origId = cfg.voiceId;
-            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model);
+            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model, cfg.deeplKey);
 
             const audioUrl = await window.voiceTTS.previewClonedVoice(_clonedVoiceId);
             if (_previewAudio) _previewAudio.pause();
@@ -856,7 +859,7 @@ function selectCompanionMode(mode) {
             };
 
             // 恢复原 voiceId（等确认后才真正写入）
-            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, origId, cfg.model);
+            window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, origId, cfg.model, cfg.deeplKey);
         } catch (err) {
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 试听效果'; }
             if (typeof showNotification === 'function') {
@@ -869,7 +872,7 @@ function selectCompanionMode(mode) {
     window._confirmVoiceClone = function () {
         if (!_clonedVoiceId || !window.voiceTTS) return;
         const cfg = window.voiceTTS.getTtsConfig();
-        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model);
+        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, _clonedVoiceId, cfg.model, cfg.deeplKey);
 
         // 同步回设置页输入框
         const vIdInput = document.getElementById('tts-voice-id');
