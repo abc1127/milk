@@ -931,9 +931,12 @@ function renderFavorites() {
 
                 // 先查 IndexedDB 持久化缓存
                 try {
-                    const buf = await localforage.getItem(`favAudio_${msgId}`);
-                    if (buf) {
-                        const blob = new Blob([buf], { type: 'audio/mpeg' });
+                    const base64 = await localforage.getItem(`favAudio_${msgId}`);
+                    if (base64 && typeof base64 === 'string') {
+                        const binary = atob(base64);
+                        const bytes = new Uint8Array(binary.length);
+                        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                        const blob = new Blob([bytes], { type: 'audio/mpeg' });
                         audioUrl = URL.createObjectURL(blob);
                     }
                 } catch (e) {}
