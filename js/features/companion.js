@@ -765,7 +765,7 @@
             }
         } catch (e) { console.warn('[companion] invite notification error:', e); }
 
-        // 22 秒未接听自动消失 → 错过（不走过渡画面）
+        // 60 秒未接听自动消失 → 错过（不走过渡画面）
         const autoTimer = setTimeout(() => {
             if (!overlay.isConnected) return; // 已被其他操作移除了
             try { if (typeof window.stopCurrentSound === 'function') window.stopCurrentSound(); } catch(e) {}
@@ -791,7 +791,7 @@
                     });
                 }
             } catch(e) { console.warn('[companion] missed diary entry error:', e); }
-        }, 22000);
+        }, 60000);
 
         // 拒绝
         overlay.querySelector('#companion-incoming-reject').addEventListener('click', () => {
