@@ -1038,10 +1038,12 @@
             transform: translateY(5px);
             transition: var(--transition);
             z-index: 2;
+            pointer-events: none;
         }
-        .message-content-wrapper:hover .message-meta-actions {
+        .message-wrapper.actions-visible .message-meta-actions {
             opacity: 1;
             transform: translateY(0);
+            pointer-events: auto;
         }
         .message-wrapper.sent .message-meta-actions {
             left: 0;
