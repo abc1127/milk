@@ -919,6 +919,7 @@
             flex-shrink: 0;
             -webkit-user-select: none;
             user-select: none;
+            -webkit-touch-callout: none;
         }
         .message-avatar {
             width: var(--in-chat-avatar-size);
