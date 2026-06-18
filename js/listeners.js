@@ -552,19 +552,40 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
     if (pokeMyName) pokeMyName.textContent = settings.myName || '我';
     if (pokePartnerName) pokePartnerName.textContent = settings.partnerName || '对方';
     if (pokePreview) pokePreview.textContent = `${settings.myName || '我'} ${settings.myPokeText || '拍了拍'} ${settings.partnerName || '对方'}`;
-    // 实时预览更新
+
+    // 保存按钮 dirty 状态
+    const myPokeSaveBtn = document.getElementById('my-poke-text-save');
+    function _applyPokeSaveBtnState(isDirty) {
+        if (!myPokeSaveBtn) return;
+        myPokeSaveBtn.disabled = !isDirty;
+        myPokeSaveBtn.textContent = isDirty ? '保存' : '已保存';
+        myPokeSaveBtn.style.background = isDirty ? 'var(--accent-color)' : 'var(--border-color)';
+        myPokeSaveBtn.style.color = isDirty ? '#fff' : 'var(--text-secondary)';
+        myPokeSaveBtn.style.cursor = isDirty ? 'pointer' : 'not-allowed';
+        myPokeSaveBtn.style.opacity = isDirty ? '1' : '0.65';
+    }
+
+    // 初始状态：已保存（未修改）
+    _applyPokeSaveBtnState(false);
+
+    // 实时预览更新 + dirty 检测
     if (myPokeTextInput) {
         myPokeTextInput.oninput = () => {
             const verb = myPokeTextInput.value.trim() || '拍了拍';
             if (pokePreview) pokePreview.textContent = `${settings.myName || '我'} ${verb} ${settings.partnerName || '对方'}`;
+            // 跟已保存值比较
+            const isDirty = myPokeTextInput.value.trim() !== (settings.myPokeText || '');
+            _applyPokeSaveBtnState(isDirty);
         };
     }
+
     // 保存按钮
-    const myPokeSaveBtn = document.getElementById('my-poke-text-save');
     if (myPokeSaveBtn) {
         myPokeSaveBtn.onclick = () => {
+            if (myPokeSaveBtn.disabled) return;
             settings.myPokeText = myPokeTextInput ? myPokeTextInput.value.trim() : '';
             throttledSaveData();
+            _applyPokeSaveBtnState(false);
             if (typeof showNotification === 'function') showNotification('已保存', 'success', 1500);
         };
     }
