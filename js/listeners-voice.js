@@ -1,10 +1,7 @@
 /* ────────────────────────────────────────────────────────────────
  * 首页改造 · 梦角伪语音模块
  *   - 对方文本消息 20% 概率渲染成语音条样式（下方贴原文字）
- *   - 用户没有发语音的功能
- *   - 点击伪语音条：
- *       有 TTS 配置 → 翻译成日语 → ElevenLabs 生成真实语音播放
- *       无配置     → 假装播放（按时长走完）
+ *   - 点击语音条：等待动效（三点跳动）→ 播放动效（wifi弧线循环）→ 静态
  * ──────────────────────────────────────────────────────────────── */
 (function () {
     'use strict';
@@ -27,9 +24,64 @@
         _syncFakeVoiceUI();
     };
 
-    // 页面加载后同步开关状态
     document.addEventListener('DOMContentLoaded', _syncFakeVoiceUI);
     setTimeout(_syncFakeVoiceUI, 500);
+
+    // ─────────── 注入动效 CSS ───────────
+    (function injectStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            /* 等待状态：三点跳动 */
+            .voice-bubble.tts-loading .voice-wifi-icon { display: none; }
+            .voice-bubble.tts-loading .voice-duration { display: none; }
+            .voice-bubble.tts-loading .voice-loading-dots { display: flex; }
+
+            /* 播放状态：弧线动画 */
+            .voice-bubble.playing .voice-arc-mid { animation: voiceArcMid 1.6s ease-in-out infinite; }
+            .voice-bubble.playing .voice-arc-out { animation: voiceArcOut 1.6s ease-in-out infinite; }
+
+            .voice-arc-mid { opacity: 0; }
+            .voice-arc-out { opacity: 0; }
+
+            @keyframes voiceArcMid {
+                0%    { opacity: 0; }
+                15%   { opacity: 1; }
+                60%   { opacity: 1; }
+                75%   { opacity: 0; }
+                100%  { opacity: 0; }
+            }
+            @keyframes voiceArcOut {
+                0%    { opacity: 0; }
+                35%   { opacity: 0; }
+                50%   { opacity: 1; }
+                60%   { opacity: 1; }
+                75%   { opacity: 0; }
+                100%  { opacity: 0; }
+            }
+
+            /* 三点跳动 */
+            .voice-loading-dots {
+                display: none;
+                align-items: center;
+                gap: 4px;
+                height: 20px;
+            }
+            .voice-loading-dots span {
+                width: 5px; height: 5px;
+                border-radius: 50%;
+                background: currentColor;
+                opacity: 0.5;
+                animation: voiceDotBounce 1s ease-in-out infinite;
+            }
+            .voice-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+            .voice-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+            @keyframes voiceDotBounce {
+                0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+                40% { transform: translateY(-6px); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    })();
 
     function ready(fn) {
         if (document.readyState !== 'loading') {
@@ -43,7 +95,7 @@
         const chatContainer = document.getElementById('chat-container');
         if (!chatContainer) return;
 
-        // ─────────── 视频通话按钮：调用项目内置的发起通话函数 ───────────
+        // ─────────── 视频通话按钮 ───────────
         const videocallBtn = document.getElementById('videocall-btn');
         if (videocallBtn) {
             videocallBtn.addEventListener('click', () => {
@@ -57,7 +109,7 @@
             });
         }
 
-        // ─────────── 监听新消息：决定是否变成伪语音 + 渲染气泡 ───────────
+        // ─────────── 监听新消息 ───────────
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((m) => {
                 m.addedNodes.forEach((node) => {
@@ -70,8 +122,6 @@
             });
         });
         observer.observe(chatContainer, { childList: true });
-
-        // 启动时扫一遍（处理刷新后从数据恢复的消息）
         chatContainer.querySelectorAll('.message-wrapper').forEach(renderVoiceIfNeeded);
 
         // ─────────── 对方文本消息 → 20% 概率改成伪语音 ───────────
@@ -86,26 +136,17 @@
             if (msg._fakeVoiceConsidered) return;
             msg._fakeVoiceConsidered = true;
 
-            // 语音消息开关关闭时跳过
             if (!_isFakeVoiceOn()) return;
-
-
             if (Math.random() >= FAKE_VOICE_PROBABILITY) return;
 
-            // 时长根据字数算 = 字数/3 + 随机 0-3 秒（最少 1 秒）
             const textLen = msg.text.trim().length;
             const duration = Math.max(1, Math.floor(textLen / 3) + Math.floor(Math.random() * 4));
-            msg.voice = {
-                url: '',
-                duration: duration,
-                fakeText: msg.text,
-                transcript: ''
-            };
+            msg.voice = { url: '', duration: duration, fakeText: msg.text, transcript: '' };
             msg.text = '';
             if (typeof throttledSaveData === 'function') throttledSaveData();
         }
 
-        // ─────────── 把语音消息渲染成气泡 ───────────
+        // ─────────── 渲染语音气泡 ───────────
         function renderVoiceIfNeeded(wrapper) {
             const msgId = wrapper.dataset.msgId || wrapper.dataset.id;
             if (!msgId) return;
@@ -123,25 +164,23 @@
             const fakeText = msg.voice.fakeText || '';
             const widthPx = Math.round(80 + Math.min(duration, 60) / 60 * 120);
 
-            // 仿微信的"倒下的 wifi"声波弧（对方语音，图标朝右）
-            const waveSvg = `
-                <svg class="voice-bubble-wifi" viewBox="0 0 22 22" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
-                    <path d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
-                    <path d="M13 5 A 7 7 0 0 1 13 17"/>
-                </svg>
-            `;
-
             bubble.innerHTML = `
-                <div class="voice-bubble" data-fake="1" data-duration="${duration}" data-msg-id="${msgId}" style="width:${widthPx}px;">
-                    ${waveSvg}
-                    <span class="voice-bubble-duration">${duration}"</span>
+                <div class="voice-bubble" data-fake="1" data-duration="${duration}" data-msg-id="${msgId}" style="width:${widthPx}px; display:flex; align-items:center; gap:6px;">
+                    <svg class="voice-wifi-icon" viewBox="0 0 22 22" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
+                        <path class="voice-arc-mid" d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
+                        <path class="voice-arc-out" d="M13 5 A 7 7 0 0 1 13 17"/>
+                    </svg>
+                    <div class="voice-loading-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <span class="voice-duration">${duration}"</span>
                 </div>
                 ${fakeText ? `<div class="voice-fake-text">${escapeHtml(fakeText)}</div>` : ''}
             `;
         }
 
-        // ─────────── 当前播放的 Audio 对象 ───────────
+        // ─────────── 当前播放状态 ───────────
         let _currentAudio = null;
         let currentBubble = null;
 
@@ -165,16 +204,13 @@
             const bubble = e.target.closest('.voice-bubble');
             if (!bubble) return;
 
-            // 正在加载中，忽略重复点击
             if (bubble.classList.contains('tts-loading')) return;
 
-            // 已在播这个 → 停
             if (currentBubble === bubble && bubble.classList.contains('playing')) {
                 _stopCurrentAudio();
                 return;
             }
 
-            // 停掉之前的
             _stopCurrentAudio();
 
             const duration = Number(bubble.dataset.duration) || 3;
@@ -183,19 +219,18 @@
             // ── 有 TTS 配置：走真实语音 ──
             if (window.voiceTTS && window.voiceTTS.isTtsReady() && msgId) {
                 const msg = findMessage(msgId);
-                const textToSpeak = msg && msg.voice && msg.voice.fakeText
-                    ? msg.voice.fakeText
-                    : null;
+                const textToSpeak = msg && msg.voice && msg.voice.fakeText ? msg.voice.fakeText : null;
 
                 if (textToSpeak) {
                     currentBubble = bubble;
+                    // 等待状态：三点跳动
                     bubble.classList.add('tts-loading');
 
                     try {
                         const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, textToSpeak);
-                        // 加载期间用户可能已点别处
                         if (currentBubble !== bubble) return;
 
+                        // 播放状态：wifi 弧线动画
                         bubble.classList.remove('tts-loading');
                         bubble.classList.add('playing');
 
@@ -211,17 +246,13 @@
                             bubble.classList.remove('playing');
                             if (currentBubble === bubble) currentBubble = null;
                             if (_currentAudio === audio) _currentAudio = null;
-                            if (typeof showNotification === 'function') {
-                                showNotification('语音播放失败', 'error');
-                            }
+                            if (typeof showNotification === 'function') showNotification('语音播放失败', 'error');
                         };
                     } catch (err) {
                         bubble.classList.remove('tts-loading', 'playing');
                         currentBubble = null;
                         console.error('[voice-tts] 生成语音失败:', err);
-                        if (typeof showNotification === 'function') {
-                            showNotification('语音生成失败，请检查 API 配置', 'error');
-                        }
+                        if (typeof showNotification === 'function') showNotification('语音生成失败，请检查 API 配置', 'error');
                     }
                     return;
                 }
