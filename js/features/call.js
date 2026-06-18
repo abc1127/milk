@@ -756,7 +756,7 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
                 try { if (typeof window.stopCurrentSound === 'function') window.stopCurrentSound(); } catch(e) {}
                 const myName = (typeof settings !== 'undefined' && settings.myName) || '我';
                 sendCallEvent('fa-phone-slash', `${myName}未接听 ${getName()} 的来电`, null);
-            }, 22000);
+            }, 60000);
         }
     }
 
