@@ -2750,6 +2750,11 @@
                 text: message.voice ? (message.voice.fakeText || '') : (message.text || ''),
                 image: message.image || null,
                 sender: message.sender,
+                voice: message.voice ? {
+                    duration: message.voice.duration,
+                    fakeText: message.voice.fakeText,
+                    msgId: message.id
+                } : null,
             });
             hideCompanionTyping();
             showCompanionBubble(message);
@@ -2803,13 +2808,16 @@
             const widthPx = Math.round(80 + Math.min(duration, 60) / 60 * 100);
             bubble.innerHTML = `
                 <div class="companion-bubble-avatar">${avatarHtml}</div>
-                <div class="companion-bubble-content companion-voice-bubble" style="cursor:pointer;padding:8px 12px;min-width:${widthPx}px;display:flex;align-items:center;gap:8px;" data-msg-id="${msgId}">
-                    <svg viewBox="0 0 22 22" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
-                        <path d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
-                        <path d="M13 5 A 7 7 0 0 1 13 17"/>
-                    </svg>
-                    <span style="font-size:13px;">${duration}"</span>
+                <div style="display:flex;flex-direction:column;gap:4px;max-width:200px;">
+                    <div class="companion-bubble-content companion-voice-bubble" style="cursor:pointer;padding:8px 12px;min-width:${widthPx}px;display:flex;align-items:center;gap:8px;" data-msg-id="${msgId}">
+                        <svg viewBox="0 0 22 22" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
+                            <path d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
+                            <path d="M13 5 A 7 7 0 0 1 13 17"/>
+                        </svg>
+                        <span style="font-size:13px;">${duration}"</span>
+                    </div>
+                    ${fakeText ? `<div class="companion-bubble-content" style="font-size:12px;opacity:0.85;padding:6px 10px;">${escapeHtml(fakeText)}</div>` : ''}
                 </div>
             `;
             area.appendChild(bubble);
@@ -2820,19 +2828,27 @@
                 voiceBtn.addEventListener('click', async () => {
                     if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) return;
                     if (voiceBtn.dataset.playing === '1') return;
+
+                    // 从messages数组实时读取，确保fakeText最新
+                    const liveMsg = (typeof messages !== 'undefined')
+                        ? messages.find(m => String(m.id) === String(msgId))
+                        : null;
+                    const liveText = (liveMsg && liveMsg.voice && liveMsg.voice.fakeText)
+                        ? liveMsg.voice.fakeText
+                        : fakeText;
+                    if (!liveText) return;
+
                     voiceBtn.dataset.playing = '1';
                     voiceBtn.style.opacity = '0.6';
                     try {
-                        const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
+                        const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, liveText);
                         const audio = new Audio(audioUrl);
-                        // 播放中：阻止气泡消失
                         bubble._isPlaying = true;
                         audio.play();
                         audio.onended = () => {
                             bubble._isPlaying = false;
                             voiceBtn.dataset.playing = '0';
                             voiceBtn.style.opacity = '1';
-                            // 播放完立刻开始消失倒计时
                             _startBubbleFade(bubble);
                         };
                         audio.onerror = () => {
@@ -2844,6 +2860,7 @@
                         bubble._isPlaying = false;
                         voiceBtn.dataset.playing = '0';
                         voiceBtn.style.opacity = '1';
+                        console.error('[companion voice]', e);
                     }
                 });
             }
@@ -2941,18 +2958,39 @@
         if (_sessionDialogue.length === 0) {
             listHtml = `<div class="companion-history-empty">暂无对话</div>`;
         } else {
-            listHtml = _sessionDialogue.map(m => {
+            listHtml = _sessionDialogue.map((m, idx) => {
                 const isUser = m.sender === 'user';
                 const avatarHtml = isUser ? userAvatarHtml : partnerAvatarHtml;
                 const itemClass = isUser
                     ? 'companion-history-item companion-history-item-user'
                     : 'companion-history-item';
-                // 图片/表情 → 不装气泡，直接显示原图（跟陪伴页气泡一致）
                 if (m.image) {
                     return `
                         <div class="${itemClass} companion-history-item-image">
                             <div class="companion-bubble-avatar">${avatarHtml}</div>
                             <img class="companion-bubble-image-raw" src="${m.image}">
+                        </div>
+                    `;
+                }
+                if (m.voice) {
+                    const duration = m.voice.duration || 3;
+                    const fakeText = m.voice.fakeText || '';
+                    const msgId = m.voice.msgId;
+                    const widthPx = Math.round(80 + Math.min(duration, 60) / 60 * 100);
+                    return `
+                        <div class="${itemClass}">
+                            <div class="companion-bubble-avatar">${avatarHtml}</div>
+                            <div style="display:flex;flex-direction:column;gap:4px;max-width:200px;">
+                                <div class="companion-bubble-content companion-history-voice-btn" style="cursor:pointer;padding:8px 12px;min-width:${widthPx}px;display:flex;align-items:center;gap:8px;" data-msg-id="${msgId}" data-fake-text="${escapeHtml(fakeText)}" data-idx="${idx}">
+                                    <svg viewBox="0 0 22 22" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
+                                        <path d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
+                                        <path d="M13 5 A 7 7 0 0 1 13 17"/>
+                                    </svg>
+                                    <span style="font-size:13px;">${duration}"</span>
+                                </div>
+                                ${fakeText ? `<div class="companion-bubble-content" style="font-size:12px;opacity:0.85;padding:6px 10px;">${escapeHtml(fakeText)}</div>` : ''}
+                            </div>
                         </div>
                     `;
                 }
@@ -2993,6 +3031,36 @@
                 const historyBtn = document.getElementById('companion-history-btn');
                 if (historyBtn) historyBtn.classList.remove('active');
             }
+        });
+
+        // 历史记录里语音条点击播放
+        modal.querySelectorAll('.companion-history-voice-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) return;
+                if (btn.dataset.playing === '1') return;
+                const msgId = btn.dataset.msgId;
+                const fakeText = btn.dataset.fakeText;
+                if (!fakeText) return;
+                btn.dataset.playing = '1';
+                btn.style.opacity = '0.6';
+                try {
+                    const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                    audio.onended = () => {
+                        btn.dataset.playing = '0';
+                        btn.style.opacity = '1';
+                    };
+                    audio.onerror = () => {
+                        btn.dataset.playing = '0';
+                        btn.style.opacity = '1';
+                    };
+                } catch (e) {
+                    btn.dataset.playing = '0';
+                    btn.style.opacity = '1';
+                    console.error('[history voice]', e);
+                }
+            });
         });
 
         // 滚到底（最新对话）
