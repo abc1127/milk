@@ -127,15 +127,15 @@ function initChatActionListeners() {
                         showNotification(message.favorited ? '已收藏': '已取消收藏', 'success', 1500);
                         playSound('favorite');
 
-                        // 收藏语音消息时，把音频缓存持久化到 IndexedDB
+                        // 收藏语音消息时，把已播放过的音频持久化到 IndexedDB
                         if (message.favorited && message.voice && message.voice.fakeText) {
                             const cachedUrl = window.voiceTTS?._getAudioCache?.(String(messageId));
                             if (cachedUrl) {
-                                // 把 blob URL 转成 ArrayBuffer 存进 IndexedDB
                                 fetch(cachedUrl).then(r => r.arrayBuffer()).then(buf => {
                                     localforage.setItem(`favAudio_${messageId}`, buf);
                                 }).catch(() => {});
                             }
+                            // 没播放过就不存，收藏页第一次点才生成
                         }
                         // 取消收藏时删除缓存
                         if (!message.favorited) {
