@@ -2735,19 +2735,25 @@
         // 只在陪伴页激活时响应
         const page = document.getElementById('companion-page');
         if (!page || !page.classList.contains('active')) return;
-        // 过滤：语音消息不显示（陪伴页只显示文字+sticker）
-        if (message.voice) return;
-        // 过滤：既无文本也无图片的空消息
-        if (!message.text && !message.image) return;
-        // 记录到本次陪伴对话（存快照避免被后续语音改造影响）
-        _sessionDialogue.push({
-            text: message.text || '',
-            image: message.image || null,
-            sender: message.sender,
-        });
-        // 显示气泡 + 隐藏 typing
-        hideCompanionTyping();
-        showCompanionBubble(message);
+        // 过滤：既无文本、无图片、无语音的空消息
+        if (!message.text && !message.image && !message.voice) return;
+
+        // 延迟100ms，等 MutationObserver 里的 maybeFakeVoiceForPartner 跑完
+        // 这样 message.voice 才有可能被设置上
+        setTimeout(() => {
+            // 再次检查页面是否还在
+            const p = document.getElementById('companion-page');
+            if (!p || !p.classList.contains('active')) return;
+
+            // 记录到本次陪伴对话
+            _sessionDialogue.push({
+                text: message.voice ? (message.voice.fakeText || '') : (message.text || ''),
+                image: message.image || null,
+                sender: message.sender,
+            });
+            hideCompanionTyping();
+            showCompanionBubble(message);
+        }, 150);
     }
 
     // 钩子：用户在陪伴页发送消息时，气泡同步显示
@@ -2780,35 +2786,99 @@
         const bubble = document.createElement('div');
         bubble.className = 'companion-bubble' + (isUser ? ' companion-bubble-user' : '');
 
-        // 头像：用户用用户头像，梦角用梦角头像
+        // 头像
         const avSrc = isUser ? getMyAvatarSrc() : getPartnerAvatarSrc();
         const avatarHtml = avSrc
             ? `<img src="${avSrc}">`
             : `<i class="fas fa-user"></i>`;
 
-        // 文字 or 图片（sticker）
-        // 文字 → 装在气泡里（带背景圆角）
-        // 图片/表情 → 不要气泡容器，直接显示原图（跟主页一样）
         const isImage = !!message.image;
-        if (isImage) {
+        const isVoice = !isUser && !!message.voice;
+
+        if (isVoice) {
+            // ── 语音条气泡 ──
+            const duration = message.voice.duration || 3;
+            const fakeText = message.voice.fakeText || '';
+            const msgId = message.id;
+            const widthPx = Math.round(80 + Math.min(duration, 60) / 60 * 100);
+            bubble.innerHTML = `
+                <div class="companion-bubble-avatar">${avatarHtml}</div>
+                <div class="companion-bubble-content companion-voice-bubble" style="cursor:pointer;padding:8px 12px;min-width:${widthPx}px;display:flex;align-items:center;gap:8px;" data-msg-id="${msgId}">
+                    <svg viewBox="0 0 22 22" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
+                        <path d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
+                        <path d="M13 5 A 7 7 0 0 1 13 17"/>
+                    </svg>
+                    <span style="font-size:13px;">${duration}"</span>
+                </div>
+            `;
+            area.appendChild(bubble);
+
+            // 点击播放
+            const voiceBtn = bubble.querySelector('.companion-voice-bubble');
+            if (voiceBtn) {
+                voiceBtn.addEventListener('click', async () => {
+                    if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) return;
+                    if (voiceBtn.dataset.playing === '1') return;
+                    voiceBtn.dataset.playing = '1';
+                    voiceBtn.style.opacity = '0.6';
+                    try {
+                        const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
+                        const audio = new Audio(audioUrl);
+                        // 播放中：阻止气泡消失
+                        bubble._isPlaying = true;
+                        audio.play();
+                        audio.onended = () => {
+                            bubble._isPlaying = false;
+                            voiceBtn.dataset.playing = '0';
+                            voiceBtn.style.opacity = '1';
+                            // 播放完立刻开始消失倒计时
+                            _startBubbleFade(bubble);
+                        };
+                        audio.onerror = () => {
+                            bubble._isPlaying = false;
+                            voiceBtn.dataset.playing = '0';
+                            voiceBtn.style.opacity = '1';
+                        };
+                    } catch (e) {
+                        bubble._isPlaying = false;
+                        voiceBtn.dataset.playing = '0';
+                        voiceBtn.style.opacity = '1';
+                    }
+                });
+            }
+
+            // 语音气泡：12秒后消失（给用户时间点击）
+            _startBubbleFadeDelayed(bubble, 12000);
+
+        } else if (isImage) {
             bubble.classList.add('companion-bubble-image');
             bubble.innerHTML = `
                 <div class="companion-bubble-avatar">${avatarHtml}</div>
                 <img class="companion-bubble-image-raw" src="${message.image}">
             `;
+            area.appendChild(bubble);
+            _startBubbleFadeDelayed(bubble, 8000);
         } else {
             bubble.innerHTML = `
                 <div class="companion-bubble-avatar">${avatarHtml}</div>
                 <div class="companion-bubble-content">${escapeHtml(message.text || '')}</div>
             `;
+            area.appendChild(bubble);
+            _startBubbleFadeDelayed(bubble, 8000);
         }
-        area.appendChild(bubble);
+    }
 
-        // 8 秒显示后启动 2s 渐隐 → 共 10s
-        setTimeout(() => {
-            bubble.classList.add('fading');
-            setTimeout(() => { if (bubble.isConnected) bubble.remove(); }, 1000);
-        }, 8000);
+    function _startBubbleFadeDelayed(bubble, delay) {
+        setTimeout(() => _startBubbleFade(bubble), delay);
+    }
+
+    function _startBubbleFade(bubble) {
+        // 如果正在播放，等播放完再消失（由audio.onended触发）
+        if (bubble._isPlaying) return;
+        if (bubble.classList.contains('fading')) return;
+        bubble.classList.add('fading');
+        setTimeout(() => { if (bubble.isConnected) bubble.remove(); }, 1000);
     }
 
     function showCompanionTyping() {
