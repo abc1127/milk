@@ -933,7 +933,7 @@ function renderFavorites() {
                 try {
                     const buf = await localforage.getItem(`favAudio_${msgId}`);
                     if (buf) {
-                        const blob = new Blob([buf], { type: 'audio/mp3' });
+                        const blob = new Blob([buf], { type: 'audio/mpeg' });
                         audioUrl = URL.createObjectURL(blob);
                     }
                 } catch (e) {}
