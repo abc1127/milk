@@ -2777,9 +2777,71 @@
         showCompanionBubble(message);
     }
 
+    let _bubbleAreaClickSetup = false;
+
+    function _setupBubbleAreaClick() {
+        if (_bubbleAreaClickSetup) return;
+        const area = document.getElementById('companion-bubble-area');
+        if (!area) return;
+        _bubbleAreaClickSetup = true;
+
+        // 用捕获阶段，在所有其他监听器之前处理语音点击
+        area.addEventListener('click', async function(e) {
+            const voiceBtn = e.target.closest('.companion-voice-bubble');
+            if (!voiceBtn) return;
+
+            // 阻止事件冒泡到companion-page，防止触发handlePageClick
+            e.stopPropagation();
+
+            if (voiceBtn.dataset.playing === '1') return;
+            if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) {
+                if (typeof showNotification === 'function') showNotification('请先在聊天设置里配置真实语音', 'info');
+                return;
+            }
+
+            const msgId = voiceBtn.dataset.msgId;
+            const liveMsg = (typeof messages !== 'undefined')
+                ? messages.find(m => String(m.id) === String(msgId))
+                : null;
+            const liveText = (liveMsg && liveMsg.voice && liveMsg.voice.fakeText)
+                ? liveMsg.voice.fakeText
+                : voiceBtn.dataset.fakeText || '';
+            if (!liveText) return;
+
+            const bubble = voiceBtn.closest('.companion-bubble');
+            voiceBtn.dataset.playing = '1';
+            voiceBtn.style.opacity = '0.6';
+            try {
+                const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, liveText);
+                const audio = new Audio(audioUrl);
+                if (bubble) bubble._isPlaying = true;
+                audio.play();
+                audio.onended = () => {
+                    if (bubble) bubble._isPlaying = false;
+                    voiceBtn.dataset.playing = '0';
+                    voiceBtn.style.opacity = '1';
+                    if (bubble) _startBubbleFade(bubble);
+                };
+                audio.onerror = () => {
+                    if (bubble) bubble._isPlaying = false;
+                    voiceBtn.dataset.playing = '0';
+                    voiceBtn.style.opacity = '1';
+                };
+            } catch (err) {
+                if (bubble) bubble._isPlaying = false;
+                voiceBtn.dataset.playing = '0';
+                voiceBtn.style.opacity = '1';
+                console.error('[companion voice]', err);
+            }
+        }, true); // true = 捕获阶段
+    }
+
     function showCompanionBubble(message) {
         const area = document.getElementById('companion-bubble-area');
         if (!area) return;
+
+        // 确保全局点击委托已设置
+        _setupBubbleAreaClick();
 
         // 太多气泡时让最老的提前渐隐（最多保留 4 条）
         const activeBubbles = Array.from(area.querySelectorAll('.companion-bubble:not(.fading)'));
@@ -2823,53 +2885,9 @@
             `;
             area.appendChild(bubble);
 
-            // 点击播放
+            // 点击由 _setupBubbleAreaClick 的事件委托统一处理
             const voiceBtn = bubble.querySelector('.companion-voice-bubble');
-            if (voiceBtn) {
-                voiceBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    if (voiceBtn.dataset.playing === '1') return;
-                    if (!window.voiceTTS) { console.warn('[companion voice] voiceTTS未加载'); return; }
-                    if (!window.voiceTTS.isTtsReady()) {
-                        if (typeof showNotification === 'function') showNotification('请先在聊天设置里配置真实语音', 'info');
-                        return;
-                    }
-
-                    // 从messages数组实时读取，确保fakeText最新
-                    const liveMsg = (typeof messages !== 'undefined')
-                        ? messages.find(m => String(m.id) === String(msgId))
-                        : null;
-                    const liveText = (liveMsg && liveMsg.voice && liveMsg.voice.fakeText)
-                        ? liveMsg.voice.fakeText
-                        : fakeText;
-                    if (!liveText) return;
-
-                    voiceBtn.dataset.playing = '1';
-                    voiceBtn.style.opacity = '0.6';
-                    try {
-                        const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, liveText);
-                        const audio = new Audio(audioUrl);
-                        bubble._isPlaying = true;
-                        audio.play();
-                        audio.onended = () => {
-                            bubble._isPlaying = false;
-                            voiceBtn.dataset.playing = '0';
-                            voiceBtn.style.opacity = '1';
-                            _startBubbleFade(bubble);
-                        };
-                        audio.onerror = () => {
-                            bubble._isPlaying = false;
-                            voiceBtn.dataset.playing = '0';
-                            voiceBtn.style.opacity = '1';
-                        };
-                    } catch (e) {
-                        bubble._isPlaying = false;
-                        voiceBtn.dataset.playing = '0';
-                        voiceBtn.style.opacity = '1';
-                        console.error('[companion voice]', e);
-                    }
-                });
-            }
+            if (voiceBtn && fakeText) voiceBtn.dataset.fakeText = fakeText;
 
             // 语音气泡：12秒后消失（给用户时间点击）
             _startBubbleFadeDelayed(bubble, 12000);
