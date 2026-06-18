@@ -1355,6 +1355,15 @@
                                 <input type="password" id="tts-deepl-key" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx"
                                     style="width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);box-sizing:border-box;">
                             </div>
+                            <div style="margin-bottom:10px;">
+                                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">语音语言</div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;" id="tts-lang-group">
+                                    <button onclick="window._setTtsLang && window._setTtsLang('JA', this)" class="tts-lang-btn active" data-lang="JA" style="padding:5px 12px;border:1px solid var(--accent-color);border-radius:20px;background:rgba(var(--accent-color-rgb),0.1);color:var(--accent-color);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-family);">日语</button>
+                                    <button onclick="window._setTtsLang && window._setTtsLang('EN', this)" class="tts-lang-btn" data-lang="EN" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">英语</button>
+                                    <button onclick="window._setTtsLang && window._setTtsLang('KO', this)" class="tts-lang-btn" data-lang="KO" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">韩语</button>
+                                    <button onclick="window._setTtsLang && window._setTtsLang('DE', this)" class="tts-lang-btn" data-lang="DE" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">德语</button>
+                                </div>
+                            </div>
                             <button id="tts-save-btn" onclick="window._saveTtsConfig && window._saveTtsConfig()"
                                 style="width:100%;padding:9px;border:none;border-radius:8px;background:var(--accent-color);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-family);">
                                 保存配置
