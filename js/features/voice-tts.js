@@ -278,7 +278,7 @@
         const pairs = hex.match(/.{1,2}/g);
         if (!pairs || !pairs.length) throw new Error(emptyMessage || 'MiniMax TTS 返回数据异常');
         const bytes = new Uint8Array(pairs.map(b => parseInt(b, 16)));
-        const blob = new Blob([bytes], { type: 'audio/mp3' });
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
         return URL.createObjectURL(blob);
     }
 
