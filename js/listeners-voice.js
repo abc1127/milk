@@ -205,7 +205,14 @@
 
         // ─────────── 点击语音条 ───────────
         document.body.addEventListener('click', async (e) => {
-            const bubble = e.target.closest('.voice-bubble');
+            // 点击语音条本身或字卡文字都触发
+            const voiceEl = e.target.closest('.voice-bubble') || 
+                            (e.target.closest('.voice-fake-text') && e.target.closest('.message'));
+            if (!voiceEl) return;
+
+            // 找到实际的voice-bubble（可能是点字卡区域触发的）
+            const messageEl = e.target.closest('.message');
+            const bubble = messageEl ? messageEl.querySelector('.voice-bubble') : e.target.closest('.voice-bubble');
             if (!bubble) return;
 
             if (bubble.classList.contains('tts-loading')) return;
