@@ -2690,8 +2690,8 @@
 
     // 点击空白区域 → 触发梦角字卡回复（模拟用户碰了一下梦角，但不写入用户消息）
     function handlePageClick(e) {
-        // 排除按钮、计时器区域、退出确认弹窗的点击
-        if (e.target.closest('button, input, #companion-timer-area, #companion-exit-confirm')) return;
+        // 排除按钮、计时器区域、退出确认弹窗、语音条的点击
+        if (e.target.closest('button, input, #companion-timer-area, #companion-exit-confirm, .companion-voice-bubble')) return;
         // 涟漪特效（始终响应）
         createRippleEffect(e.clientX, e.clientY);
         // 检查字卡是否为空（变量在 window._customReplies 或全局 customReplies）
