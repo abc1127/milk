@@ -2735,15 +2735,16 @@
         // 只在陪伴页激活时响应
         const page = document.getElementById('companion-page');
         if (!page || !page.classList.contains('active')) return;
-        // 过滤：既无文本、无图片、无语音的空消息
-        if (!message.text && !message.image && !message.voice) return;
 
-        // 延迟100ms，等 MutationObserver 里的 maybeFakeVoiceForPartner 跑完
+        // 延迟150ms，等 MutationObserver 里的 maybeFakeVoiceForPartner 跑完
         // 这样 message.voice 才有可能被设置上
         setTimeout(() => {
             // 再次检查页面是否还在
             const p = document.getElementById('companion-page');
             if (!p || !p.classList.contains('active')) return;
+
+            // 过滤：既无文本、无图片、无语音的空消息（延迟后判断，此时voice已被设置）
+            if (!message.text && !message.image && !message.voice) return;
 
             // 记录到本次陪伴对话
             _sessionDialogue.push({
@@ -2771,6 +2772,7 @@
             text: message.text || '',
             image: message.image || null,
             sender: 'user',
+            voice: null,
         });
         showCompanionBubble(message);
     }
@@ -2808,8 +2810,8 @@
             const widthPx = Math.round(80 + Math.min(duration, 60) / 60 * 100);
             bubble.innerHTML = `
                 <div class="companion-bubble-avatar">${avatarHtml}</div>
-                <div style="display:flex;flex-direction:column;gap:4px;max-width:200px;">
-                    <div class="companion-bubble-content companion-voice-bubble" style="cursor:pointer;padding:8px 12px;min-width:${widthPx}px;display:flex;align-items:center;gap:8px;" data-msg-id="${msgId}">
+                <div class="companion-bubble-content companion-voice-bubble" style="cursor:pointer;padding:8px 12px;display:flex;flex-direction:column;gap:6px;" data-msg-id="${msgId}">
+                    <div style="min-width:${widthPx}px;display:flex;align-items:center;gap:8px;">
                         <svg viewBox="0 0 22 22" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
                             <path d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
@@ -2817,7 +2819,7 @@
                         </svg>
                         <span style="font-size:13px;">${duration}"</span>
                     </div>
-                    ${fakeText ? `<div class="companion-bubble-content" style="font-size:12px;opacity:0.85;padding:6px 10px;">${escapeHtml(fakeText)}</div>` : ''}
+                    ${fakeText ? `<div style="font-size:12px;opacity:0.85;border-top:1px solid rgba(0,0,0,0.08);padding-top:5px;">${escapeHtml(fakeText)}</div>` : ''}
                 </div>
             `;
             area.appendChild(bubble);
@@ -2825,9 +2827,14 @@
             // 点击播放
             const voiceBtn = bubble.querySelector('.companion-voice-bubble');
             if (voiceBtn) {
-                voiceBtn.addEventListener('click', async () => {
-                    if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) return;
+                voiceBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
                     if (voiceBtn.dataset.playing === '1') return;
+                    if (!window.voiceTTS) { console.warn('[companion voice] voiceTTS未加载'); return; }
+                    if (!window.voiceTTS.isTtsReady()) {
+                        if (typeof showNotification === 'function') showNotification('请先在聊天设置里配置真实语音', 'info');
+                        return;
+                    }
 
                     // 从messages数组实时读取，确保fakeText最新
                     const liveMsg = (typeof messages !== 'undefined')
@@ -2980,8 +2987,8 @@
                     return `
                         <div class="${itemClass}">
                             <div class="companion-bubble-avatar">${avatarHtml}</div>
-                            <div style="display:flex;flex-direction:column;gap:4px;max-width:200px;">
-                                <div class="companion-bubble-content companion-history-voice-btn" style="cursor:pointer;padding:8px 12px;min-width:${widthPx}px;display:flex;align-items:center;gap:8px;" data-msg-id="${msgId}" data-fake-text="${escapeHtml(fakeText)}" data-idx="${idx}">
+                            <div class="companion-bubble-content companion-history-voice-btn" style="cursor:pointer;padding:8px 12px;display:flex;flex-direction:column;gap:6px;" data-msg-id="${msgId}" data-fake-text="${escapeHtml(fakeText)}" data-idx="${idx}">
+                                <div style="min-width:${widthPx}px;display:flex;align-items:center;gap:8px;">
                                     <svg viewBox="0 0 22 22" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/>
                                         <path d="M10 8 A 3.5 3.5 0 0 1 10 14"/>
@@ -2989,7 +2996,7 @@
                                     </svg>
                                     <span style="font-size:13px;">${duration}"</span>
                                 </div>
-                                ${fakeText ? `<div class="companion-bubble-content" style="font-size:12px;opacity:0.85;padding:6px 10px;">${escapeHtml(fakeText)}</div>` : ''}
+                                ${fakeText ? `<div style="font-size:12px;opacity:0.85;border-top:1px solid rgba(0,0,0,0.08);padding-top:5px;">${escapeHtml(fakeText)}</div>` : ''}
                             </div>
                         </div>
                     `;
