@@ -21,6 +21,74 @@ function setupEventListeners() {
 }
 
 function initChatActionListeners() {
+
+            // ── 长按显示工具栏 ──────────────────────────────────────────
+            let _longPressTimer = null;
+            let _longPressTriggered = false;
+            const LONG_PRESS_MS = 500;
+
+            function _hideAllActions() {
+                document.querySelectorAll('.message-wrapper.actions-visible').forEach(w => {
+                    w.classList.remove('actions-visible');
+                });
+            }
+
+            DOMElements.chatContainer.addEventListener('touchstart', (e) => {
+                const wrapper = e.target.closest('.message-wrapper');
+                if (!wrapper) return;
+                // 点到工具栏按钮本身，不触发长按
+                if (e.target.closest('.message-meta-actions')) return;
+                _longPressTriggered = false;
+                _longPressTimer = setTimeout(() => {
+                    _longPressTriggered = true;
+                    _hideAllActions();
+                    wrapper.classList.add('actions-visible');
+                    // 触觉反馈
+                    if (navigator.vibrate) navigator.vibrate(30);
+                }, LONG_PRESS_MS);
+            }, { passive: true });
+
+            DOMElements.chatContainer.addEventListener('touchend', (e) => {
+                clearTimeout(_longPressTimer);
+                _longPressTimer = null;
+            }, { passive: true });
+
+            DOMElements.chatContainer.addEventListener('touchmove', (e) => {
+                clearTimeout(_longPressTimer);
+                _longPressTimer = null;
+            }, { passive: true });
+
+            // 点击空白处收起工具栏
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.message-wrapper')) {
+                    _hideAllActions();
+                }
+            });
+
+            // ── 点击语音条直接播放 ─────────────────────────────────────
+            DOMElements.chatContainer.addEventListener('click', (e) => {
+                // 如果是长按触发的，忽略随后的click
+                if (_longPressTriggered) {
+                    _longPressTriggered = false;
+                    return;
+                }
+
+                const voiceBubble = e.target.closest('.voice-bubble');
+                if (voiceBubble) {
+                    // 直接触发voice-bubble的点击（listeners-voice.js里已有逻辑）
+                    return;
+                }
+
+                // 点击气泡本身（非工具栏）不做任何事
+                const wrapper = e.target.closest('.message-wrapper');
+                if (wrapper && !e.target.closest('.message-meta-actions') && !e.target.closest('.voice-bubble')) {
+                    // 收起工具栏
+                    if (wrapper.classList.contains('actions-visible')) {
+                        wrapper.classList.remove('actions-visible');
+                    }
+                }
+            });
+
             DOMElements.chatContainer.addEventListener('click', (e) => {
 
                 if (isBatchFavoriteMode) {
