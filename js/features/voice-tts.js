@@ -28,8 +28,8 @@
 
     function getTtsConfig() { return _getConfig(); }
 
-    function saveTtsConfig(minimaxKey, groupId, voiceId, model, deeplKey) {
-        _saveConfig({ minimaxKey, groupId, voiceId, model: model || 'speech-02-turbo', deeplKey: deeplKey || '' });
+    function saveTtsConfig(minimaxKey, groupId, voiceId, model, deeplKey, targetLang) {
+        _saveConfig({ minimaxKey, groupId, voiceId, model: model || 'speech-02-turbo', deeplKey: deeplKey || '', targetLang: targetLang || 'JA' });
     }
 
     function isTtsReady() {
@@ -95,40 +95,51 @@
 
     // ─────────── DeepL 翻译（有key用DeepL，无key fallback到MyMemory）───────────
     async function translateToJapanese(text) {
-        const { deeplKey } = _getConfig();
+        const { deeplKey, targetLang } = _getConfig();
+        const lang = targetLang || 'JA';
+
+        // MyMemory 语言代码映射
+        const myMemoryLangMap = { 'JA': 'ja', 'EN': 'en', 'KO': 'ko', 'DE': 'de' };
+        const myMemoryTarget = myMemoryLangMap[lang] || 'ja';
 
         if (deeplKey && deeplKey.trim()) {
             // 用 DeepL
+            const body = {
+                text: [text],
+                target_lang: lang
+            };
+            // 只有日语才加 formality
+            if (lang === 'JA') body.formality = 'less';
+
             const res = await fetch('https://api-free.deepl.com/v2/translate', {
                 method: 'POST',
                 headers: {
                     'Authorization': `DeepL-Auth-Key ${deeplKey.trim()}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    text: [text],
-                    target_lang: 'JA',
-                    formality: 'less'
-                })
+                body: JSON.stringify(body)
             });
             if (!res.ok) {
                 const err = await res.text();
                 throw new Error(`DeepL 翻译失败 (${res.status}): ${err}`);
             }
             const data = await res.json();
-            return _adjustTone(data.translations[0].text);
+            const translated = data.translations[0].text;
+            // 只有日语做语气后处理
+            return lang === 'JA' ? _adjustTone(translated) : translated;
         }
 
         // fallback：MyMemory
         const encoded = encodeURIComponent(text);
-        const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=zh|ja`;
+        const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=zh|${myMemoryTarget}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`MyMemory 翻译请求失败 (${res.status})`);
         const data = await res.json();
         if (data.responseStatus !== 200) {
             throw new Error(`MyMemory 翻译失败: ${data.responseDetails || '未知错误'}`);
         }
-        return _adjustTone(data.responseData.translatedText);
+        const translated = data.responseData.translatedText;
+        return lang === 'JA' ? _adjustTone(translated) : translated;
     }
 
     // ─────────── MiniMax TTS ───────────
