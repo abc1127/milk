@@ -2690,8 +2690,8 @@
 
     // 点击空白区域 → 触发梦角字卡回复（模拟用户碰了一下梦角，但不写入用户消息）
     function handlePageClick(e) {
-        // 排除按钮、计时器区域、退出确认弹窗、语音条的点击
-        if (e.target.closest('button, input, #companion-timer-area, #companion-exit-confirm, .companion-voice-bubble')) return;
+        // 排除按钮、计时器区域、退出确认弹窗、语音气泡的点击
+        if (e.target.closest('button, input, #companion-timer-area, #companion-exit-confirm, .companion-bubble-voice')) return;
         // 涟漪特效（始终响应）
         createRippleEffect(e.clientX, e.clientY);
         // 检查字卡是否为空（变量在 window._customReplies 或全局 customReplies）
@@ -2790,17 +2790,16 @@
         }
 
         const isUser = message.sender === 'user';
+        const isImage = !!message.image;
+        const isVoice = !isUser && !!message.voice;
         const bubble = document.createElement('div');
-        bubble.className = 'companion-bubble' + (isUser ? ' companion-bubble-user' : '');
+        bubble.className = 'companion-bubble' + (isUser ? ' companion-bubble-user' : '') + (isVoice ? ' companion-bubble-voice' : '');
 
         // 头像
         const avSrc = isUser ? getMyAvatarSrc() : getPartnerAvatarSrc();
         const avatarHtml = avSrc
             ? `<img src="${avSrc}">`
             : `<i class="fas fa-user"></i>`;
-
-        const isImage = !!message.image;
-        const isVoice = !isUser && !!message.voice;
 
         if (isVoice) {
             // ── 语音条气泡 ──
