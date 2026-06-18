@@ -28,8 +28,8 @@
 
     function getTtsConfig() { return _getConfig(); }
 
-    function saveTtsConfig(minimaxKey, groupId, voiceId, model) {
-        _saveConfig({ minimaxKey, groupId, voiceId, model: model || 'speech-02-turbo' });
+    function saveTtsConfig(minimaxKey, groupId, voiceId, model, deeplKey) {
+        _saveConfig({ minimaxKey, groupId, voiceId, model: model || 'speech-02-turbo', deeplKey: deeplKey || '' });
     }
 
     function isTtsReady() {
@@ -93,19 +93,41 @@
         return result;
     }
 
-    // ─────────── MyMemory 翻译（免费，无需注册）───────────
+    // ─────────── DeepL 翻译（有key用DeepL，无key fallback到MyMemory）───────────
     async function translateToJapanese(text) {
+        const { deeplKey } = _getConfig();
+
+        if (deeplKey && deeplKey.trim()) {
+            // 用 DeepL
+            const res = await fetch('https://api-free.deepl.com/v2/translate', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `DeepL-Auth-Key ${deeplKey.trim()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    text: [text],
+                    target_lang: 'JA',
+                    formality: 'less'
+                })
+            });
+            if (!res.ok) {
+                const err = await res.text();
+                throw new Error(`DeepL 翻译失败 (${res.status}): ${err}`);
+            }
+            const data = await res.json();
+            return _adjustTone(data.translations[0].text);
+        }
+
+        // fallback：MyMemory
         const encoded = encodeURIComponent(text);
         const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=zh|ja`;
-
         const res = await fetch(url);
         if (!res.ok) throw new Error(`MyMemory 翻译请求失败 (${res.status})`);
-
         const data = await res.json();
         if (data.responseStatus !== 200) {
             throw new Error(`MyMemory 翻译失败: ${data.responseDetails || '未知错误'}`);
         }
-
         return _adjustTone(data.responseData.translatedText);
     }
 
