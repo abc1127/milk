@@ -40,8 +40,12 @@
             .voice-bubble.playing .voice-arc-mid { animation: voiceArcMid 1.6s ease-in-out infinite; }
             .voice-bubble.playing .voice-arc-out { animation: voiceArcOut 1.6s ease-in-out infinite; }
 
-            .voice-arc-mid { opacity: 0; }
-            .voice-arc-out { opacity: 0; }
+            .voice-arc-mid { opacity: 1; }
+            .voice-arc-out { opacity: 1; }
+
+            /* 播放时弧线从动画起点开始 */
+            .voice-bubble.playing .voice-arc-mid,
+            .voice-bubble.playing .voice-arc-out { opacity: 0; }
 
             @keyframes voiceArcMid {
                 0%    { opacity: 0; }
