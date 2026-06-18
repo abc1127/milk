@@ -890,10 +890,32 @@ function renderFavorites() {
     });
 
     // 语音条点击播放
+    let _favCurrentAudio = null;
+    let _favCurrentBtn = null;
+
     list.querySelectorAll('.fav-voice-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (btn.dataset.playing === '1') return;
+            if (btn.dataset.playing === '1') {
+                // 点同一个正在播的 → 暂停
+                if (_favCurrentAudio) { _favCurrentAudio.pause(); _favCurrentAudio = null; }
+                btn.dataset.playing = '0';
+                btn.style.opacity = '1';
+                _favCurrentBtn = null;
+                return;
+            }
+
+            // 停掉正在播的其他语音
+            if (_favCurrentAudio) {
+                _favCurrentAudio.pause();
+                _favCurrentAudio = null;
+            }
+            if (_favCurrentBtn && _favCurrentBtn !== btn) {
+                _favCurrentBtn.dataset.playing = '0';
+                _favCurrentBtn.style.opacity = '1';
+                _favCurrentBtn = null;
+            }
+
             if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) {
                 if (typeof showNotification === 'function') showNotification('请先在聊天设置里配置真实语音', 'info');
                 return;
@@ -903,6 +925,7 @@ function renderFavorites() {
             if (!fakeText) return;
             btn.dataset.playing = '1';
             btn.style.opacity = '0.6';
+            _favCurrentBtn = btn;
             try {
                 let audioUrl = null;
 
@@ -920,13 +943,26 @@ function renderFavorites() {
                     audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
                 }
 
+                // 加载期间可能已经被别的点击停掉了
+                if (_favCurrentBtn !== btn) return;
+
                 const audio = new Audio(audioUrl);
+                _favCurrentAudio = audio;
                 audio.play();
-                audio.onended = () => { btn.dataset.playing = '0'; btn.style.opacity = '1'; };
-                audio.onerror = () => { btn.dataset.playing = '0'; btn.style.opacity = '1'; };
+                audio.onended = () => {
+                    btn.dataset.playing = '0';
+                    btn.style.opacity = '1';
+                    if (_favCurrentBtn === btn) { _favCurrentBtn = null; _favCurrentAudio = null; }
+                };
+                audio.onerror = () => {
+                    btn.dataset.playing = '0';
+                    btn.style.opacity = '1';
+                    if (_favCurrentBtn === btn) { _favCurrentBtn = null; _favCurrentAudio = null; }
+                };
             } catch (err) {
                 btn.dataset.playing = '0';
                 btn.style.opacity = '1';
+                if (_favCurrentBtn === btn) { _favCurrentBtn = null; _favCurrentAudio = null; }
                 console.error('[fav voice]', err);
             }
         });
