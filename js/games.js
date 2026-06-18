@@ -831,7 +831,7 @@ function renderFavorites() {
             : msg.image
                 ? `<img src="${msg.image}" style="max-width:100%;max-height:180px;border-radius:8px;display:block;margin-top:4px;cursor:pointer;" onclick="if(typeof viewImage==='function')viewImage('${msg.image.replace(/'/g,'\\\'')}')" loading="lazy">`
                 : msg.voice
-                    ? `<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(var(--accent-color-rgb),0.1);border-radius:20px;"><svg viewBox="0 0 22 22" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-color);flex-shrink:0;"><circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/><path d="M10 8 A 3.5 3.5 0 0 1 10 14"/><path d="M13 5 A 7 7 0 0 1 13 17"/></svg><span style="font-size:12px;color:var(--accent-color);">${msg.voice.duration || 0}"</span></div>${msg.voice.fakeText ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${msg.voice.fakeText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : ''}`
+                    ? `<div class="fav-voice-btn" data-msg-id="${msg.id}" data-fake-text="${(msg.voice.fakeText||'').replace(/"/g,'&quot;')}" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(var(--accent-color-rgb),0.1);border-radius:20px;cursor:pointer;"><svg viewBox="0 0 22 22" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-color);flex-shrink:0;"><circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/><path d="M10 8 A 3.5 3.5 0 0 1 10 14"/><path d="M13 5 A 7 7 0 0 1 13 17"/></svg><span style="font-size:12px;color:var(--accent-color);">${msg.voice.duration || 0}"</span></div>${msg.voice.fakeText ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${msg.voice.fakeText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : ''}`
                     : '';
         const avatarEl = isUser
             ? (typeof DOMElements !== 'undefined' ? DOMElements.me.avatar : null)
@@ -885,6 +885,34 @@ function renderFavorites() {
                     }
                 }
                 renderFavorites();
+            }
+        });
+    });
+
+    // 语音条点击播放
+    list.querySelectorAll('.fav-voice-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (btn.dataset.playing === '1') return;
+            if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) {
+                if (typeof showNotification === 'function') showNotification('请先在聊天设置里配置真实语音', 'info');
+                return;
+            }
+            const msgId = btn.dataset.msgId;
+            const fakeText = btn.dataset.fakeText;
+            if (!fakeText) return;
+            btn.dataset.playing = '1';
+            btn.style.opacity = '0.6';
+            try {
+                const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
+                const audio = new Audio(audioUrl);
+                audio.play();
+                audio.onended = () => { btn.dataset.playing = '0'; btn.style.opacity = '1'; };
+                audio.onerror = () => { btn.dataset.playing = '0'; btn.style.opacity = '1'; };
+            } catch (err) {
+                btn.dataset.playing = '0';
+                btn.style.opacity = '1';
+                console.error('[fav voice]', err);
             }
         });
     });
