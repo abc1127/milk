@@ -43,10 +43,12 @@ function initChatActionListeners() {
                     _longPressTriggered = true;
                     _hideAllActions();
                     wrapper.classList.add('actions-visible');
+                    // 阻止文字选中
+                    if (window.getSelection) window.getSelection().removeAllRanges();
                     // 触觉反馈
                     if (navigator.vibrate) navigator.vibrate(30);
                 }, LONG_PRESS_MS);
-            }, { passive: true });
+            }, { passive: false });
 
             DOMElements.chatContainer.addEventListener('touchend', (e) => {
                 clearTimeout(_longPressTimer);
