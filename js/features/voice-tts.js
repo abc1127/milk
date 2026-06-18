@@ -451,7 +451,12 @@
         getAudioForMessage,
         cloneVoice,
         previewClonedVoice,
-        translateToJapanese
+        translateToJapanese,
+        _getAudioCache: (msgId) => {
+            const cfg = _getConfig();
+            const cacheKey = [msgId, cfg.voiceId || '', cfg.model || DEFAULT_TTS_MODEL, cfg.targetLang || 'JA'].join('|');
+            return _audioCache[cacheKey] || null;
+        }
     };
 
 })();
