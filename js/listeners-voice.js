@@ -252,6 +252,7 @@
                         // 复用同一个 Audio 对象，保持用户交互上下文
                         audio.volume = 1;
                         audio.src = audioUrl;
+                        audio.load();
                         _currentAudio = audio;
                         audio.onended = () => {
                             bubble.classList.remove('playing');
