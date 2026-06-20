@@ -112,7 +112,7 @@
         JA: {
             name: 'Japanese',
             ttsBoost: 'Japanese',
-            instruction: 'Translate into natural spoken Japanese. Keep the tone natural for dialogue, slightly cool/blunt when the source text is blunt, and suitable for being spoken aloud by a TTS voice.'
+            instruction: 'Translate into natural spoken Japanese from the perspective of a young adult male speaker. Use masculine Japanese speech patterns: use 「俺」for first person (not 「私」or 「僕」), sentence-final particles like 「だ」「ぞ」「な」「か」「よ」(not 「わ」「の」「かしら」), and verb forms like 「〜てくれ」「〜しろ」. The tone should be cool, slightly blunt, and direct — like a cold but quietly caring male character. No honorifics (です・ます). Keep it natural for dialogue and suitable for TTS.'
         },
         EN: {
             name: 'English',
