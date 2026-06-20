@@ -234,20 +234,25 @@
 
                 if (textToSpeak) {
                     currentBubble = bubble;
-                    // 等待状态：三点跳动
                     bubble.classList.add('tts-loading');
+
+                    // 在用户点击的瞬间创建 Audio 并静音播放一帧
+                    // 目的是让浏览器记住「这是用户交互触发的」
+                    const audio = new Audio();
+                    audio.volume = 0;
+                    audio.play().catch(() => {});
 
                     try {
                         const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, textToSpeak);
                         if (currentBubble !== bubble) return;
 
-                        // 播放状态：wifi 弧线动画
                         bubble.classList.remove('tts-loading');
                         bubble.classList.add('playing');
 
-                        const audio = new Audio(audioUrl);
+                        // 复用同一个 Audio 对象，保持用户交互上下文
+                        audio.volume = 1;
+                        audio.src = audioUrl;
                         _currentAudio = audio;
-                        audio.play();
                         audio.onended = () => {
                             bubble.classList.remove('playing');
                             if (currentBubble === bubble) currentBubble = null;
@@ -259,6 +264,11 @@
                             if (_currentAudio === audio) _currentAudio = null;
                             if (typeof showNotification === 'function') showNotification('语音播放失败', 'error');
                         };
+                        audio.play().catch(() => {
+                            bubble.classList.remove('playing');
+                            if (currentBubble === bubble) currentBubble = null;
+                            if (_currentAudio === audio) _currentAudio = null;
+                        });
                     } catch (err) {
                         bubble.classList.remove('tts-loading', 'playing');
                         currentBubble = null;
