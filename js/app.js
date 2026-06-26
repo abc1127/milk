@@ -871,8 +871,11 @@ function selectCompanionMode(mode) {
         window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, cfg.voiceId, cfg.model, cfg.targetLang, cfg.gender, cfg.styleText);
         _lastSavedTtsConfig = cfg;
         _setTtsDirty(false);
+        // 清掉内存缓存，让下次点击用新设置重新翻译+TTS
+        // 注意：IndexedDB 里的收藏音频不动
+        if (window.voiceTTS.clearMemoryCache) window.voiceTTS.clearMemoryCache();
         if (typeof showNotification === 'function') {
-            showNotification('配置已保存', 'success');
+            showNotification('配置已保存，语音缓存已重置', 'success');
         }
     };
 
