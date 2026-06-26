@@ -253,6 +253,10 @@
                         audio.volume = 1;
                         audio.src = audioUrl;
                         audio.load();
+                        // 应用用户设置的语速（变速不变调）
+                        if (window.voiceTTS && window.voiceTTS.applyPlaybackSettings) {
+                            window.voiceTTS.applyPlaybackSettings(audio);
+                        }
                         _currentAudio = audio;
                         audio.onended = () => {
                             bubble.classList.remove('playing');
