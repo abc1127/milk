@@ -190,7 +190,22 @@
     }
 
     function _getTtsLanguageBoost(lang) {
+        // 原文模式：按中文发音规则念，不能掉进 JA 兜底
+        if (lang === 'RAW') return 'Chinese';
         return _getLangInfo(lang).ttsBoost || 'auto';
+    }
+
+    // 根据要发送给 TTS 的文本动态决定 language_boost：
+    // 配的是日/韩，但文本里完全没有假名/韩字、却含汉字 → 说明发出去的其实是中文
+    // （常见于翻译失败回退到原文），这时按 Chinese 念，避免出现 nayishi 这种鬼读音
+    function _detectActualLangBoost(text, configuredBoost) {
+        if (!text) return configuredBoost;
+        const hasKana = /[\u3040-\u309F\u30A0-\u30FF]/.test(text);
+        const hasHangul = /[\uAC00-\uD7AF]/.test(text);
+        const hasHan = /[\u4E00-\u9FFF]/.test(text);
+        if (configuredBoost === 'Japanese' && hasHan && !hasKana) return 'Chinese';
+        if (configuredBoost === 'Korean'   && hasHan && !hasHangul) return 'Chinese';
+        return configuredBoost;
     }
 
     function _getMiniMaxTextEndpoints(groupId) {
@@ -362,6 +377,11 @@
         if (!minimaxKey || !groupId || !voiceId) throw new Error('未配置 MiniMax Key、Group ID 或 Voice ID');
         const modelName = model || DEFAULT_TTS_MODEL;
 
+        // 优先用配置语言，但用文本内容做一次校正——
+        // 如果文本明显是中文而 boost 仍指向日/韩，就改成 Chinese
+        const configuredBoost = _getTtsLanguageBoost(targetLang || 'JA');
+        const languageBoost = _detectActualLangBoost(translatedText, configuredBoost);
+
         const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${encodeURIComponent(groupId)}`, {
             method: 'POST',
             headers: {
@@ -372,7 +392,7 @@
                 model: modelName,
                 text: translatedText,
                 stream: false,
-                language_boost: _getTtsLanguageBoost(targetLang || 'JA'),
+                language_boost: languageBoost,
                 output_format: 'hex',
                 voice_setting: {
                     voice_id: voiceId,
