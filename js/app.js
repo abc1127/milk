@@ -838,6 +838,30 @@ function selectCompanionMode(mode) {
         _checkTtsDirty();
     };
 
+    // ─── 性别切换 ───
+    window._setTtsGender = function(gender, btn) {
+        document.querySelectorAll('.tts-gender-btn').forEach(b => {
+            const isActive = b === btn;
+            b.classList.toggle('active', isActive);
+            b.style.border = isActive ? '1px solid var(--accent-color)' : '1px solid var(--border-color)';
+            b.style.background = isActive ? 'rgba(var(--accent-color-rgb),0.1)' : 'transparent';
+            b.style.color = isActive ? 'var(--accent-color)' : 'var(--text-secondary)';
+            b.style.fontWeight = isActive ? '600' : 'normal';
+        });
+        _checkTtsDirty();
+    };
+
+    // ─── 风格预设 ───
+    window._setTtsStylePreset = function(btn) {
+        const styleText = document.getElementById('tts-style-text');
+        const styleCount = document.getElementById('tts-style-count');
+        if (styleText) {
+            styleText.value = btn.dataset.style || '';
+            if (styleCount) styleCount.textContent = styleText.value.length;
+        }
+        _checkTtsDirty();
+    };
+
     // ─── 保存配置 ───
     window._saveTtsConfig = function () {
         if (!window.voiceTTS || !_ttsConfigDirty) return;
