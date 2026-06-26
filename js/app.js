@@ -814,12 +814,12 @@ function selectCompanionMode(mode) {
         if (styleText) { styleText.value = cfg.styleText || ''; }
         if (styleCount) styleCount.textContent = (cfg.styleText || '').length;
         if (speedEl)   speedEl.value = String(cfg.speed);
-        if (speedLabel) speedLabel.textContent = cfg.speed.toFixed(1) + '×';
+        if (speedLabel) speedLabel.textContent = cfg.speed.toFixed(2) + '×';
         // 滑块实时联动数字标签 + dirty 检测（只绑一次）
         if (speedEl && !speedEl.dataset.bound) {
             speedEl.dataset.bound = '1';
             speedEl.addEventListener('input', () => {
-                if (speedLabel) speedLabel.textContent = Number(speedEl.value).toFixed(1) + '×';
+                if (speedLabel) speedLabel.textContent = Number(speedEl.value).toFixed(2) + '×';
                 _checkTtsDirty();
             });
         }
