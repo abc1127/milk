@@ -1341,14 +1341,8 @@
                             </div>
                             <div style="margin-bottom:8px;">
                                 <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Voice ID</div>
-                                <div style="display:flex;gap:6px;align-items:center;">
-                                    <input type="text" id="tts-voice-id" placeholder="克隆后自动填入，或手动粘贴"
-                                        style="flex:1;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);">
-                                    <button onclick="window._openVoiceCloneModal && window._openVoiceCloneModal()"
-                                        style="padding:8px 10px;border:1px solid var(--accent-color);border-radius:8px;background:rgba(var(--accent-color-rgb),0.08);color:var(--accent-color);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:var(--font-family);">
-                                        <i class="fas fa-magic"></i> 克隆声音
-                                    </button>
-                                </div>
+                                <input type="text" id="tts-voice-id" placeholder="粘贴你的 Voice ID"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);box-sizing:border-box;">
                             </div>
                             <div style="margin-bottom:10px;">
                                 <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">语音语言</div>
@@ -1358,6 +1352,25 @@
                                     <button onclick="window._setTtsLang && window._setTtsLang('EN', this)" class="tts-lang-btn" data-lang="EN" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">英语</button>
                                     <button onclick="window._setTtsLang && window._setTtsLang('KO', this)" class="tts-lang-btn" data-lang="KO" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">韩语</button>
                                     <button onclick="window._setTtsLang && window._setTtsLang('DE', this)" class="tts-lang-btn" data-lang="DE" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">德语</button>
+                                </div>
+                            </div>
+
+                            <div style="margin-bottom:10px;">
+                                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                                    <span style="display:flex;align-items:center;gap:6px;">
+                                        <span>语速</span>
+                                        <span id="tts-speed-value" style="font-weight:400;opacity:0.8;">1.0×</span>
+                                    </span>
+                                    <button type="button" id="tts-preview-btn" onclick="window._previewTts && window._previewTts()"
+                                        style="padding:4px 10px;border:1px solid var(--accent-color);border-radius:14px;background:rgba(var(--accent-color-rgb),0.08);color:var(--accent-color);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font-family);display:inline-flex;align-items:center;gap:4px;">
+                                        <i class="fas fa-play" style="font-size:9px;"></i><span id="tts-preview-label">试听</span>
+                                    </button>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <span style="font-size:10px;color:var(--text-secondary);opacity:0.6;">慢</span>
+                                    <input type="range" id="tts-speed" min="0.5" max="2" step="0.1" value="1"
+                                        style="flex:1;accent-color:var(--accent-color);cursor:pointer;">
+                                    <span style="font-size:10px;color:var(--text-secondary);opacity:0.6;">快</span>
                                 </div>
                             </div>
 
