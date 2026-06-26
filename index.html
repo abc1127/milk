@@ -1353,10 +1353,33 @@
                             <div style="margin-bottom:10px;">
                                 <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">语音语言</div>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap;" id="tts-lang-group">
+                                    <button onclick="window._setTtsLang && window._setTtsLang('RAW', this)" class="tts-lang-btn" data-lang="RAW" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">原文</button>
                                     <button onclick="window._setTtsLang && window._setTtsLang('JA', this)" class="tts-lang-btn active" data-lang="JA" style="padding:5px 12px;border:1px solid var(--accent-color);border-radius:20px;background:rgba(var(--accent-color-rgb),0.1);color:var(--accent-color);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-family);">日语</button>
                                     <button onclick="window._setTtsLang && window._setTtsLang('EN', this)" class="tts-lang-btn" data-lang="EN" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">英语</button>
                                     <button onclick="window._setTtsLang && window._setTtsLang('KO', this)" class="tts-lang-btn" data-lang="KO" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">韩语</button>
                                     <button onclick="window._setTtsLang && window._setTtsLang('DE', this)" class="tts-lang-btn" data-lang="DE" style="padding:5px 12px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">德语</button>
+                                </div>
+                            </div>
+
+                            <!-- 翻译设置：选原文时隐藏 -->
+                            <div id="tts-translate-options" style="margin-bottom:10px;">
+                                <div style="margin-bottom:8px;">
+                                    <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">角色性别</div>
+                                    <div style="display:flex;gap:6px;">
+                                        <button onclick="window._setTtsGender && window._setTtsGender('male', this)" class="tts-gender-btn active" data-gender="male" style="padding:5px 16px;border:1px solid var(--accent-color);border-radius:20px;background:rgba(var(--accent-color-rgb),0.1);color:var(--accent-color);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-family);">男</button>
+                                        <button onclick="window._setTtsGender && window._setTtsGender('female', this)" class="tts-gender-btn" data-gender="female" style="padding:5px 16px;border:1px solid var(--border-color);border-radius:20px;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-family);">女</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">说话风格 <span style="font-weight:400;opacity:0.7;">（50字以内，选填）</span></div>
+                                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;" id="tts-style-presets">
+                                        <button onclick="window._setTtsStylePreset && window._setTtsStylePreset(this)" data-style="冷漠傲娇，嘴硬心软，命令式语气，少用感叹词" style="padding:3px 10px;border:1px solid var(--border-color);border-radius:12px;background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:var(--font-family);">傲娇冷漠</button>
+                                        <button onclick="window._setTtsStylePreset && window._setTtsStylePreset(this)" data-style="温柔体贴，说话轻柔，喜欢用关心的语气" style="padding:3px 10px;border:1px solid var(--border-color);border-radius:12px;background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:var(--font-family);">温柔体贴</button>
+                                        <button onclick="window._setTtsStylePreset && window._setTtsStylePreset(this)" data-style="活泼开朗，语气轻快，喜欢用语气词和感叹" style="padding:3px 10px;border:1px solid var(--border-color);border-radius:12px;background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:var(--font-family);">活泼开朗</button>
+                                        <button onclick="window._setTtsStylePreset && window._setTtsStylePreset(this)" data-style="高冷霸道，惜字如金，语气强势直接" style="padding:3px 10px;border:1px solid var(--border-color);border-radius:12px;background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:var(--font-family);">高冷霸道</button>
+                                    </div>
+                                    <textarea id="tts-style-text" maxlength="50" placeholder="描述角色说话风格，例如：冷漠傲娇，嘴硬心软，命令式语气" style="width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);box-sizing:border-box;resize:none;height:60px;line-height:1.5;"></textarea>
+                                    <div style="font-size:10px;color:var(--text-secondary);text-align:right;margin-top:2px;"><span id="tts-style-count">0</span>/50</div>
                                 </div>
                             </div>
                             <button id="tts-save-btn" onclick="window._saveTtsConfig && window._saveTtsConfig()" disabled
