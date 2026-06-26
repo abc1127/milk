@@ -16,6 +16,22 @@
 
     // ─────────── 内存缓存：避免重复点击时反复请求接口 ───────────
     const _audioCache = {};
+    const _audioCacheOrder = []; // 记录插入顺序，用于 LRU
+    const AUDIO_CACHE_LIMIT = 30;
+
+    function _setAudioCache(key, url) {
+        if (_audioCache[key]) return; // 已有就不重复
+        _audioCache[key] = url;
+        _audioCacheOrder.push(key);
+        // 超出限制时删最旧的
+        if (_audioCacheOrder.length > AUDIO_CACHE_LIMIT) {
+            const oldKey = _audioCacheOrder.shift();
+            if (_audioCache[oldKey]) {
+                URL.revokeObjectURL(_audioCache[oldKey]); // 释放内存
+                delete _audioCache[oldKey];
+            }
+        }
+    }
     const _audioPending = {};
     const _translationCache = {};
     const _translationPending = {};
@@ -34,15 +50,15 @@
 
     function getTtsConfig() { return _getConfig(); }
 
-    function saveTtsConfig(minimaxKey, groupId, voiceId, model, maybeTargetLang, legacyTargetLang) {
-        // Backward compatible with the older six-argument save signature.
-        const targetLang = legacyTargetLang || maybeTargetLang || 'JA';
+    function saveTtsConfig(minimaxKey, groupId, voiceId, model, targetLang, gender, styleText) {
         _saveConfig({
             minimaxKey,
             groupId,
             voiceId,
             model: model || DEFAULT_TTS_MODEL,
-            targetLang: targetLang || 'JA'
+            targetLang: targetLang || 'JA',
+            gender: gender || 'male',
+            styleText: styleText || ''
         });
     }
 
@@ -154,6 +170,25 @@
         return TARGET_LANG_INFO[lang] || TARGET_LANG_INFO.JA;
     }
 
+    function _getGenderInstruction(lang, gender) {
+        const isMale = gender === 'male';
+        const instructions = {
+            JA: isMale
+                ? 'Use masculine Japanese speech: first person 「俺」, sentence-final 「だ」「ぞ」「な」「よ」, commands like 「〜てくれ」「〜しろ」. No honorifics.'
+                : 'Use feminine Japanese speech: first person 「私」「あたし」, sentence-final 「わ」「の」「よね」「かしら」. No honorifics.',
+            KO: isMale
+                ? 'Use informal masculine Korean speech patterns. Use 나 for first person.'
+                : 'Use informal feminine Korean speech patterns. Use 나/저 for first person.',
+            EN: isMale
+                ? 'Use casual masculine English. Direct and confident tone.'
+                : 'Use casual feminine English. Warm and expressive tone.',
+            DE: isMale
+                ? 'Use informal masculine German. Direct du-form.'
+                : 'Use informal feminine German. Warm du-form.',
+        };
+        return instructions[lang] || instructions.JA;
+    }
+
     function _getTtsLanguageBoost(lang) {
         return _getLangInfo(lang).ttsBoost || 'auto';
     }
@@ -223,14 +258,26 @@
     }
 
     async function translateToJapanese(text) {
-        const { minimaxKey, groupId, targetLang } = _getConfig();
+        const { minimaxKey, groupId, targetLang, gender, styleText } = _getConfig();
         if (!minimaxKey) throw new Error('请先填写 MiniMax API Key');
         const lang = targetLang || 'JA';
+
+        // 原文直传，跳过翻译
+        if (lang === 'RAW') return String(text || '').trim();
+
         const langInfo = _getLangInfo(lang);
         const sourceText = String(text || '').trim();
         if (!sourceText) return '';
 
-        const cacheKey = [sourceText, lang].join('|');
+        // 动态生成 instruction（性别 + 自定义风格）
+        const genderInstruction = _getGenderInstruction(lang, gender || 'male');
+        const styleInstruction = styleText ? `The character's speaking style: ${styleText}.` : '';
+        const dynamicLangInfo = {
+            ...langInfo,
+            instruction: [genderInstruction, styleInstruction].filter(Boolean).join(' ')
+        };
+
+        const cacheKey = [sourceText, lang, gender || 'male', styleText || ''].join('|');
         if (_translationCache[cacheKey]) return _translationCache[cacheKey];
         if (_translationPending[cacheKey]) return _translationPending[cacheKey];
 
@@ -250,7 +297,7 @@
                     {
                         role: 'user',
                         name: 'source_text',
-                        content: _buildTranslationPrompt(langInfo, sourceText)
+                        content: _buildTranslationPrompt(dynamicLangInfo, sourceText)
                     }
                 ]
             };
@@ -346,7 +393,7 @@
         _audioPending[cacheKey] = (async () => {
             const translatedText = await translateToJapanese(chineseText);
             const blobUrl = await generateSpeech(translatedText);
-            _audioCache[cacheKey] = blobUrl;
+            _setAudioCache(cacheKey, blobUrl);
             return blobUrl;
         })();
 
