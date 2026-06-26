@@ -24,6 +24,14 @@
     <link rel="stylesheet" href="css/companion.css">
 
     <style id="css-live-preview-style"></style>
+    <style>
+        /* 隐藏 number input 的上下小箭头（Webkit / Chrome / Edge / Safari）*/
+        #tts-speed-value::-webkit-outer-spin-button,
+        #tts-speed-value::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
 </head>
 <body>
 <div id="splash-declaration">
@@ -1357,9 +1365,11 @@
 
                             <div style="margin-bottom:10px;">
                                 <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                                    <span style="display:flex;align-items:center;gap:6px;">
+                                    <span style="display:flex;align-items:center;gap:2px;">
                                         <span>语速</span>
-                                        <span id="tts-speed-value" style="font-weight:400;opacity:0.8;">1.00×</span>
+                                        <input type="number" id="tts-speed-value" min="0.5" max="2" step="0.01" value="1.00"
+                                            style="width:50px;padding:2px 4px;margin-left:6px;border:1px solid var(--border-color);border-radius:6px;font-size:12px;font-weight:600;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);text-align:right;-moz-appearance:textfield;">
+                                        <span style="font-weight:400;opacity:0.7;">×</span>
                                     </span>
                                     <button type="button" id="tts-preview-btn" onclick="window._previewTts && window._previewTts()"
                                         style="padding:4px 10px;border:1px solid var(--accent-color);border-radius:14px;background:rgba(var(--accent-color-rgb),0.08);color:var(--accent-color);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font-family);display:inline-flex;align-items:center;gap:4px;">
