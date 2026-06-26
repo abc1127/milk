@@ -700,7 +700,9 @@ function selectCompanionMode(mode) {
             groupId: document.getElementById('tts-group-id')?.value,
             model: document.getElementById('tts-model')?.value,
             voiceId: document.getElementById('tts-voice-id')?.value,
-            targetLang: _getSelectedTtsLang()
+            targetLang: _getSelectedTtsLang(),
+            gender: document.querySelector('.tts-gender-btn.active')?.dataset.gender || 'male',
+            styleText: (document.getElementById('tts-style-text')?.value || '').trim()
         });
     }
 
@@ -711,7 +713,9 @@ function selectCompanionMode(mode) {
             left.groupId === right.groupId &&
             left.model === right.model &&
             left.voiceId === right.voiceId &&
-            left.targetLang === right.targetLang;
+            left.targetLang === right.targetLang &&
+            left.gender === right.gender &&
+            left.styleText === right.styleText;
     }
 
     function _paintTtsLangButtons(selectedLang) {
@@ -723,6 +727,9 @@ function selectCompanionMode(mode) {
             btn.style.color = isActive ? 'var(--accent-color)' : 'var(--text-secondary)';
             btn.style.fontWeight = isActive ? '600' : 'normal';
         });
+        // 选原文时隐藏翻译选项
+        const translateOpts = document.getElementById('tts-translate-options');
+        if (translateOpts) translateOpts.style.display = selectedLang === 'RAW' ? 'none' : '';
     }
 
     function _getSelectedTtsLang() {
@@ -783,12 +790,26 @@ function selectCompanionMode(mode) {
         const gId   = document.getElementById('tts-group-id');
         const model = document.getElementById('tts-model');
         const vId   = document.getElementById('tts-voice-id');
+        const styleText = document.getElementById('tts-style-text');
+        const styleCount = document.getElementById('tts-style-count');
         if (mKey)  mKey.value  = cfg.minimaxKey;
         if (gId)   gId.value   = cfg.groupId;
         if (model) model.value = cfg.model;
         if (vId)   vId.value   = cfg.voiceId;
+        if (styleText) { styleText.value = cfg.styleText || ''; }
+        if (styleCount) styleCount.textContent = (cfg.styleText || '').length;
         _lastSavedTtsConfig = cfg;
         _paintTtsLangButtons(cfg.targetLang);
+        // 性别按钮高亮
+        const savedGender = cfg.gender || 'male';
+        document.querySelectorAll('.tts-gender-btn').forEach(btn => {
+            const isActive = btn.dataset.gender === savedGender;
+            btn.classList.toggle('active', isActive);
+            btn.style.border = isActive ? '1px solid var(--accent-color)' : '1px solid var(--border-color)';
+            btn.style.background = isActive ? 'rgba(var(--accent-color-rgb),0.1)' : 'transparent';
+            btn.style.color = isActive ? 'var(--accent-color)' : 'var(--text-secondary)';
+            btn.style.fontWeight = isActive ? '600' : 'normal';
+        });
         _bindTtsFieldListeners();
         _setTtsDirty(false);
     }
@@ -821,7 +842,7 @@ function selectCompanionMode(mode) {
     window._saveTtsConfig = function () {
         if (!window.voiceTTS || !_ttsConfigDirty) return;
         const cfg = _readTtsFormConfig();
-        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, cfg.voiceId, cfg.model, cfg.targetLang);
+        window.voiceTTS.saveTtsConfig(cfg.minimaxKey, cfg.groupId, cfg.voiceId, cfg.model, cfg.targetLang, cfg.gender, cfg.styleText);
         _lastSavedTtsConfig = cfg;
         _setTtsDirty(false);
         if (typeof showNotification === 'function') {
