@@ -806,21 +806,55 @@ function selectCompanionMode(mode) {
         const styleText = document.getElementById('tts-style-text');
         const styleCount = document.getElementById('tts-style-count');
         const speedEl   = document.getElementById('tts-speed');
-        const speedLabel = document.getElementById('tts-speed-value');
+        const speedInput = document.getElementById('tts-speed-value'); // 现在是 input 不是 span
         if (mKey)  mKey.value  = cfg.minimaxKey;
         if (gId)   gId.value   = cfg.groupId;
         if (model) model.value = cfg.model;
         if (vId)   vId.value   = cfg.voiceId;
         if (styleText) { styleText.value = cfg.styleText || ''; }
         if (styleCount) styleCount.textContent = (cfg.styleText || '').length;
-        if (speedEl)   speedEl.value = String(cfg.speed);
-        if (speedLabel) speedLabel.textContent = cfg.speed.toFixed(2) + '×';
-        // 滑块实时联动数字标签 + dirty 检测（只绑一次）
+        if (speedEl)    speedEl.value = String(cfg.speed);
+        if (speedInput) speedInput.value = cfg.speed.toFixed(2);
+        // 滑块 ↔ 输入框双向同步 + dirty 检测（只绑一次）
         if (speedEl && !speedEl.dataset.bound) {
             speedEl.dataset.bound = '1';
             speedEl.addEventListener('input', () => {
-                if (speedLabel) speedLabel.textContent = Number(speedEl.value).toFixed(2) + '×';
+                // 拖滑块 → 同步到输入框
+                if (speedInput) speedInput.value = Number(speedEl.value).toFixed(2);
                 _checkTtsDirty();
+            });
+        }
+        if (speedInput && !speedInput.dataset.bound) {
+            speedInput.dataset.bound = '1';
+            // 输入框变化时 → 同步到滑块
+            // 用 input 事件实时同步；用 change/blur 时做边界夹紧（避免打字打到一半被改值）
+            speedInput.addEventListener('input', () => {
+                const v = Number(speedInput.value);
+                if (isFinite(v) && speedEl) {
+                    // 实时反映到滑块（不强制夹边界，让用户继续打字）
+                    speedEl.value = String(Math.max(0.5, Math.min(2, v)));
+                }
+                _checkTtsDirty();
+            });
+            const clampInput = () => {
+                let v = Number(speedInput.value);
+                if (!isFinite(v) || speedInput.value === '') v = 1.0;
+                v = Math.max(0.5, Math.min(2, v));
+                // 四舍五入到 0.01
+                v = Math.round(v * 100) / 100;
+                speedInput.value = v.toFixed(2);
+                if (speedEl) speedEl.value = String(v);
+                _checkTtsDirty();
+            };
+            speedInput.addEventListener('change', clampInput);
+            speedInput.addEventListener('blur', clampInput);
+            // 回车直接确认（防止表单意外提交）
+            speedInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    clampInput();
+                    speedInput.blur();
+                }
             });
         }
         _lastSavedTtsConfig = cfg;
@@ -959,10 +993,14 @@ function selectCompanionMode(mode) {
         }
     };
 
-    // 拖动滑块时如果正在播放试听，实时改变播放速度（即时反馈）
+    // 拖动滑块或输入数字时，如果正在播放试听，实时改变播放速度（即时反馈）
     document.addEventListener('input', (e) => {
-        if (e.target && e.target.id === 'tts-speed' && _speedPreviewAudio && window.voiceTTS) {
-            window.voiceTTS.applyPlaybackSettings(_speedPreviewAudio, Number(e.target.value));
+        if (!_speedPreviewAudio || !window.voiceTTS) return;
+        if (e.target && (e.target.id === 'tts-speed' || e.target.id === 'tts-speed-value')) {
+            const v = Number(e.target.value);
+            if (isFinite(v)) {
+                window.voiceTTS.applyPlaybackSettings(_speedPreviewAudio, Math.max(0.5, Math.min(2, v)));
+            }
         }
     });
 
