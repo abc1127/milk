@@ -232,6 +232,13 @@
             if (window.localforage) {
                 localforage.keys().then(function (keys) {
                     var promises = keys.map(function (k) {
+                        // favAudio_ 是音频 Base64，直接估算大小，不读内容避免内存爆炸
+                        if (k.startsWith('favAudio_')) {
+                            return localforage.getItem(k).then(function(raw) {
+                                var bytes = typeof raw === 'string' ? raw.length * 2 : 0;
+                                return { k: k, b: bytes };
+                            }).catch(function() { return { k: k, b: 0 }; });
+                        }
                         return localforage.getItem(k).then(function (raw) {
                             if (raw == null) return { k: k, b: 0 };
                             var str = typeof raw === 'string' ? raw : JSON.stringify(raw);
