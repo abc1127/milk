@@ -690,7 +690,9 @@ function selectCompanionMode(mode) {
             groupId: String(cfg.groupId || '').trim(),
             model: String(cfg.model || 'speech-02-turbo').trim() || 'speech-02-turbo',
             voiceId: String(cfg.voiceId || '').trim(),
-            targetLang: String(cfg.targetLang || 'JA').trim() || 'JA'
+            targetLang: String(cfg.targetLang || 'JA').trim() || 'JA',
+            gender: String(cfg.gender || 'male').trim() || 'male',
+            styleText: String(cfg.styleText || '').trim()
         };
     }
 
