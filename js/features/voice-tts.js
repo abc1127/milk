@@ -508,6 +508,16 @@
         cloneVoice,
         previewClonedVoice,
         translateToJapanese,
+        clearMemoryCache: () => {
+            // 清翻译缓存
+            Object.keys(_translationCache).forEach(k => delete _translationCache[k]);
+            // 清音频缓存（释放 blob URL）
+            Object.keys(_audioCache).forEach(k => {
+                URL.revokeObjectURL(_audioCache[k]);
+                delete _audioCache[k];
+            });
+            _audioCacheOrder.length = 0;
+        },
         _getAudioCache: (msgId) => {
             const cfg = _getConfig();
             const cacheKey = [msgId, cfg.voiceId || '', cfg.model || DEFAULT_TTS_MODEL, cfg.targetLang || 'JA'].join('|');
