@@ -950,6 +950,7 @@ function renderFavorites() {
                 if (_favCurrentBtn !== btn) return;
 
                 const audio = new Audio(audioUrl);
+                if (window.voiceTTS && window.voiceTTS.applyPlaybackSettings) window.voiceTTS.applyPlaybackSettings(audio);
                 _favCurrentAudio = audio;
                 audio.play();
                 audio.onended = () => {
