@@ -397,19 +397,6 @@
         const configuredBoost = _getTtsLanguageBoost(targetLang || 'JA');
         const languageBoost = _detectActualLangBoost(translatedText, configuredBoost);
 
-        // 调试日志：精确暴露发给 MiniMax 的文本（含每个字符的 codepoint）
-        try {
-            const codepoints = Array.from(translatedText).map(c => `${c}=U+${c.codePointAt(0).toString(16).toUpperCase()}`).join(' ');
-            console.log('[voice-tts] → MiniMax TTS', {
-                text: translatedText,
-                length: translatedText.length,
-                codepoints,
-                language_boost: languageBoost,
-                voice_id: voiceId,
-                model: modelName
-            });
-        } catch (_) { /* 忽略日志错误 */ }
-
         const res = await fetch(`https://api.minimax.chat/v1/t2a_v2?GroupId=${encodeURIComponent(groupId)}`, {
             method: 'POST',
             headers: {
