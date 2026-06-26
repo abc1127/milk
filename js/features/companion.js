@@ -2814,6 +2814,7 @@
             try {
                 const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, liveText);
                 const audio = new Audio(audioUrl);
+                if (window.voiceTTS.applyPlaybackSettings) window.voiceTTS.applyPlaybackSettings(audio);
                 if (bubble) bubble._isPlaying = true;
                 audio.play();
                 audio.onended = () => {
@@ -3070,6 +3071,7 @@
                 try {
                     const audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
                     const audio = new Audio(audioUrl);
+                    if (window.voiceTTS.applyPlaybackSettings) window.voiceTTS.applyPlaybackSettings(audio);
                     audio.play();
                     audio.onended = () => {
                         btn.dataset.playing = '0';
