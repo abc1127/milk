@@ -205,7 +205,22 @@
     }
 
     function _stripThinkBlocks(text) {
-        return String(text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        let s = String(text || '');
+        // 1) 成对闭合的 <think>...</think>
+        s = s.replace(/<think>[\s\S]*?<\/think>/gi, '');
+        // 2) 被 max_tokens 截断、没有结束标签的 <think>（推理模型常见）——
+        //    从第一个未闭合的 <think> 一直删到结尾
+        s = s.replace(/<think>[\s\S]*$/i, '');
+        // 3) 清掉残留的孤立标签
+        s = s.replace(/<\/?think>/gi, '');
+        return s.trim();
+    }
+
+    // 判断清洗后的文本是不是“没翻译成功”的垃圾（含标签残留 / 仍是空）
+    function _looksLikeBadTranslation(text) {
+        if (!text || !text.trim()) return true;
+        if (/<\/?think>/i.test(text)) return true;   // 还残留 think 标签
+        return false;
     }
 
     function _cleanTranslatedText(text) {
@@ -258,9 +273,10 @@
     }
 
     async function translateToJapanese(text) {
-        const { minimaxKey, groupId, targetLang, gender, styleText } = _getConfig();
+        const { minimaxKey, groupId, targetLang, gender, styleText, translateModel } = _getConfig();
         if (!minimaxKey) throw new Error('请先填写 MiniMax API Key');
         const lang = targetLang || 'JA';
+        const translateModelName = translateModel || DEFAULT_TRANSLATE_MODEL;
 
         // 原文直传，跳过翻译
         if (lang === 'RAW') return String(text || '').trim();
@@ -283,7 +299,7 @@
 
         _translationPending[cacheKey] = (async () => {
             const body = {
-                model: DEFAULT_TRANSLATE_MODEL,
+                model: translateModelName,
                 stream: false,
                 max_completion_tokens: TRANSLATE_MAX_TOKENS,
                 temperature: 0,
@@ -305,16 +321,18 @@
             const data = await _postMiniMaxText(body, minimaxKey, groupId);
             let translated = _cleanTranslatedText(_extractMiniMaxContent(data));
 
-            // 返回空时重试一次，提高 temperature 让模型更愿意输出
-            if (!translated) {
-                console.warn('[voice-tts] 翻译返回为空，重试一次...');
+            // 返回空 / 仍是垃圾（含 think 残留）时重试一次，并给更高 temperature
+            if (_looksLikeBadTranslation(translated)) {
+                console.warn('[voice-tts] 翻译异常（空或含推理残留），重试一次...');
                 const retryBody = { ...body, temperature: 0.3 };
                 const retryData = await _postMiniMaxText(retryBody, minimaxKey, groupId);
                 translated = _cleanTranslatedText(_extractMiniMaxContent(retryData));
             }
 
-            if (!translated) {
-                console.warn('[voice-tts] 重试后仍为空，使用原文');
+            // 重试后仍不可用 → 回退到原文。
+            // 用户已验证：MiniMax 能直接朗读原始中文，所以原文是安全兜底。
+            if (_looksLikeBadTranslation(translated)) {
+                console.warn('[voice-tts] 重试后翻译仍不可用，回退使用原文朗读');
                 return sourceText;
             }
             return lang === 'JA' ? _adjustTone(translated) : translated;
