@@ -523,6 +523,12 @@ async function importAllData(file) {
                 localStorageNeedles: []
             },
             {
+                id: 'companion',
+                label: '陪伴模式（背景 / 语音 / 白噪音）',
+                indexedDBNeedles: ['companionData'],
+                localStorageNeedles: []
+            },
+            {
                 id: 'tts',
                 label: '真实语音配置',
                 indexedDBNeedles: ['favAudio_'],
