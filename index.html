@@ -207,6 +207,10 @@
                 <button id="session-manager-btn" class="action-btn" title="会话管理"><i class="fas fa-comments"></i></button>
                 <button id="group-chat-btn" class="action-btn" title="群聊设置"><i class="fas fa-users"></i></button>
                 <button id="envelope-header-btn" class="action-btn" title="信箱"><i class="fas fa-envelope-open-text"></i></button>
+                <button id="moments-header-btn" class="action-btn" title="动态" onclick="openMomentsModal()" style="position:relative;">
+                    <i class="fas fa-seedling"></i>
+                    <span id="moments-header-badge" style="display:none;position:absolute;top:3px;right:3px;width:7px;height:7px;background:var(--accent-color);border-radius:50%;border:1.5px solid var(--primary-bg);pointer-events:none;"></span>
+                </button>
                 <button id="companion-btn" class="action-btn" title="陪伴"><i class="fas fa-hand-holding-heart"></i></button>
                 <button id="daily-greeting-btn" class="action-btn" title="今日公告" onclick="reopenDailyGreeting()"><i class="fas fa-newspaper"></i></button>
                 <button id="settings-btn" class="action-btn" title="设置"><i class="fas fa-cog"></i></button>
@@ -428,6 +432,56 @@
             </div>
         </div>
     </div>
+<!-- ═══ 动态：主列表弹窗 ═══ -->
+<div class="modal" id="moments-modal" style="display:none;">
+    <div class="modal-content moments-modal-content">
+        <div class="moments-modal-header">
+            <button onclick="closeMomentsModal()" title="关闭"><i class="fas fa-times"></i></button>
+            <span class="moments-modal-title">动 态</span>
+            <button onclick="openMomentsCompose()" title="发动态"><i class="fas fa-edit"></i></button>
+        </div>
+        <div id="moments-feed" class="moments-feed"></div>
+    </div>
+</div>
+
+<!-- ═══ 动态：帖子详情弹窗 ═══ -->
+<div class="modal" id="moments-detail-modal" style="display:none;z-index:2100;">
+    <div class="modal-content moments-detail-content">
+        <div class="moments-detail-header">
+            <button onclick="closeMomentsDetail()"><i class="fas fa-arrow-left"></i></button>
+            <span>动态详情</span>
+            <span style="width:32px;"></span>
+        </div>
+        <div id="moments-detail-body" class="moments-detail-body"></div>
+        <div class="moments-comment-bar">
+            <input type="text" id="moments-comment-input" class="moments-comment-input" placeholder="写评论…"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMomentsComment();}">
+            <button onclick="sendMomentsComment()"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ 动态：发帖弹窗 ═══ -->
+<div class="modal" id="moments-compose-modal" style="display:none;z-index:2100;">
+    <div class="modal-content moments-compose-content">
+        <div class="moments-compose-header">
+            <button onclick="closeMomentsCompose()">取消</button>
+            <span>发动态</span>
+            <button id="moments-submit-btn" onclick="submitMomentsPost()">发布</button>
+        </div>
+        <textarea id="moments-compose-text" class="moments-compose-textarea" placeholder="想说点什么…"></textarea>
+        <div id="moments-compose-previews"></div>
+        <div class="moments-compose-actions">
+            <button onclick="document.getElementById('moments-image-input').click()">
+                <i class="fas fa-image"></i> 添加图片
+            </button>
+            <span id="moments-image-count" style="font-size:12px;color:var(--text-secondary);margin-left:auto;"></span>
+        </div>
+        <input type="file" id="moments-image-input" multiple accept="image/*" style="display:none;"
+            onchange="onMomentsImagesSelected(this)">
+    </div>
+</div>
+
 <div class="modal" id="envelope-modal">
     <div class="modal-content" style="max-height:92vh; padding:0; overflow:hidden; background:transparent;">
     <div class="env-wrapper">
